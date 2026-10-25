@@ -1,0 +1,35 @@
+# My Diary (Android)
+
+A personal day-to-day diary and organiser. Kotlin, Jetpack Compose (Material 3), Room database. Android 8.0+.
+
+## Features
+
+| Tab | What it does |
+|---|---|
+| **Today** | Greeting, rate the day with a smiley (😊 Good / 😐 Fair / 😞 Bad), quick add buttons, tasks due, today's appointments, birthdays coming up in the next 14 days, today's diary entries |
+| **Tasks** | To-do list with due date, priority, notes; filter To do / Done / All; overdue tasks shown in red |
+| **Diary** | Daily **Activities**, **Memories** and **Good deeds** (who you helped), grouped by day |
+| **Events** | **Appointments** (with reminder notification) and **Special days**: birthdays, anniversaries, other yearly days. **Sync from contacts** imports birthdays and anniversaries from your Google contacts |
+| **More → Places I visited** | Save a place with your current GPS location (address filled in automatically); open it in Google Maps |
+| **More → Monthly report** | Happiness score for the month, with a verdict (happy / mixed / unhappy), a mood calendar, the list of good deeds ("How I helped others"), and counts of tasks, activities, memories and places |
+| **More → Backup & restore** | Back up everything to one `.json` file, saved to the phone **or Google Drive** (pick "Drive" in the file picker). Restore from either location |
+
+Daily notification at 8:00 for today's birthdays and special days, tasks due, and appointments. On the last day of each month a notification reminds you to check your monthly report.
+
+The happiness score counts a Good day as 100, Fair as 50 and Bad as 0, then averages over the days you rated. 70 or more means happy, 45–69 mixed, below 45 unhappy.
+
+## Build & install
+
+Open this folder in **Android Studio** and press Run, or from a terminal:
+
+```bash
+JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradlew assembleDebug
+```
+
+The APK is written to `app/build/outputs/apk/debug/app-debug.apk`. Copy it to your phone, or install it over USB with `adb install`.
+
+## Notes
+
+- **Google birthdays** are read from the phone's contacts. Android syncs your Google account's contacts to the phone, so no Google sign-in or API key is needed.
+- **Google Drive backup** goes through Android's file picker, so the Google Drive app must be installed and signed in. Android's own automatic backup (Backup by Google One) also includes this app's data.
+- All data stays on the device in a local database (`diary.db`).
