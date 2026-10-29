@@ -219,6 +219,25 @@ fun SheetScreen(onBack: () -> Unit) {
             }
 
             InfoCard {
+                Text("Dashboard & Timeline", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "The first two tabs of the sheet are built for you after every sync: a Dashboard with this month's " +
+                        "happiness score, mood calendar, good deeds, upcoming birthdays and appointments, and 12-month charts; " +
+                        "and a Timeline of everything you've recorded, newest first, with each day's mood. " +
+                        "In the sheet, the My Diary menu → Refresh rebuilds them after you edit rows by hand.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.size(8.dp))
+                Text("Set up before these were added?", style = MaterialTheme.typography.labelLarge)
+                Text(
+                    "Copy the script again with the button above and replace the code in Apps Script. Then Deploy → " +
+                        "Manage deployments → ✏ Edit → Version: New version → Deploy. The web app link stays the same.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+
+            InfoCard {
                 Text("Adding entries in the sheet", style = MaterialTheme.typography.titleMedium)
                 Text(
                     "After the first sync the sheet has a tab for each part of the diary: Tasks, Appointments, " +

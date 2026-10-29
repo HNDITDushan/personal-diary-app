@@ -38,6 +38,13 @@ The app talks to a small Google Apps Script ([app/src/main/res/raw/sheet_script.
 3. **Deploy → New deployment → Web app**, *Execute as:* Me, *Who has access:* Anyone → **Deploy**, and authorise it.
 4. Paste the **Web app URL** into the app and tap **Connect**. The first sync creates the tabs.
 
+After every sync the script also rebuilds two read-only tabs at the front of the sheet:
+
+- **Dashboard**: this month's happiness score and verdict, counts (days rated, good deeds, activities, places, tasks done), a colour-coded mood calendar, birthdays and special days in the next 30 days, upcoming appointments, this month's good deeds, and a 12-month trend table with charts (happiness, days by mood, good deeds).
+- **Timeline**: everything recorded, newest first, with type, details and the day's mood; it has a filter on the header row.
+
+The sheet's **My Diary → Refresh Dashboard & Timeline** menu rebuilds them after hand edits. If you set up the sheet with an older script, paste the new one and use **Deploy → Manage deployments → Edit → New version**; the web app URL stays the same.
+
 When the same record is changed in both the app and the sheet between syncs, the app's version wins. The grey `uid` and `updatedAt` columns are bookkeeping; leave them empty for new rows.
 
 ## Notes
