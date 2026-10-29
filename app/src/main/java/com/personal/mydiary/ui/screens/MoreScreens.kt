@@ -15,6 +15,7 @@ import androidx.compose.material.icons.outlined.CloudUpload
 import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material.icons.outlined.Place
+import androidx.compose.material.icons.outlined.TableChart
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -47,6 +48,7 @@ fun MoreScreen(onOpen: (String) -> Unit) {
         Column(Modifier.padding(padding)) {
             MoreItem(Icons.Outlined.Place, "Places I visited", "Save places with your location") { onOpen(Routes.PLACES) }
             MoreItem(Icons.Outlined.Insights, "Monthly report", "Happy or unhappy? Good deeds, stats") { onOpen(Routes.REPORT) }
+            MoreItem(Icons.Outlined.TableChart, "Google Sheet", "View and add entries from a Google Sheet") { onOpen(Routes.SHEET) }
             MoreItem(Icons.Outlined.CloudUpload, "Backup & restore", "Phone storage or Google Drive") { onOpen(Routes.BACKUP) }
         }
     }

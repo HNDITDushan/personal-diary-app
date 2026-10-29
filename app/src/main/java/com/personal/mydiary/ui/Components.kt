@@ -54,6 +54,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.personal.mydiary.data.save
 import com.personal.mydiary.data.DayMood
 import com.personal.mydiary.data.Mood
 import com.personal.mydiary.diaryApp
@@ -265,7 +266,7 @@ fun MoodDialog(date: LocalDate, onDismiss: () -> Unit) {
             MoodPicker(current?.mood) { selected ->
                 app.launch {
                     if (selected == null) moods().deleteOn(day)
-                    else moods().upsert(DayMood(day, selected, current?.note.orEmpty()))
+                    else moods().save(DayMood(day, selected, current?.note.orEmpty()))
                 }
                 onDismiss()
             }

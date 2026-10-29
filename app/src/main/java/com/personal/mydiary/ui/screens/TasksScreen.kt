@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import com.personal.mydiary.data.save
 import com.personal.mydiary.data.Priority
 import com.personal.mydiary.data.TaskItem
 import com.personal.mydiary.diaryApp
@@ -84,7 +85,7 @@ fun TasksScreen() {
                             leadingContent = {
                                 Checkbox(checked = task.done, onCheckedChange = { checked ->
                                     app.launch {
-                                        tasks().upsert(task.copy(done = checked, completedAt = if (checked) System.currentTimeMillis() else null))
+                                        tasks().save(task.copy(done = checked, completedAt = if (checked) System.currentTimeMillis() else null))
                                     }
                                 })
                             },

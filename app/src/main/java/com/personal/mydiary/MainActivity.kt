@@ -34,6 +34,7 @@ import com.personal.mydiary.ui.screens.EventsScreen
 import com.personal.mydiary.ui.screens.MoreScreen
 import com.personal.mydiary.ui.screens.PlacesScreen
 import com.personal.mydiary.ui.screens.ReportScreen
+import com.personal.mydiary.ui.screens.SheetScreen
 import com.personal.mydiary.ui.screens.TasksScreen
 import com.personal.mydiary.ui.screens.TodayScreen
 import com.personal.mydiary.ui.theme.MyDiaryTheme
@@ -60,6 +61,7 @@ object Routes {
     const val PLACES = "places"
     const val REPORT = "report"
     const val BACKUP = "backup"
+    const val SHEET = "sheet"
 }
 
 private data class Tab(val route: String, val label: String, val icon: ImageVector)
@@ -73,7 +75,7 @@ private val tabs = listOf(
 )
 
 /** Sub-screens reached from "More" keep that tab highlighted. */
-private val moreChildren = setOf(Routes.PLACES, Routes.REPORT, Routes.BACKUP)
+private val moreChildren = setOf(Routes.PLACES, Routes.REPORT, Routes.BACKUP, Routes.SHEET)
 
 @Composable
 fun AppRoot() {
@@ -111,6 +113,7 @@ fun AppRoot() {
             composable(Routes.PLACES) { PlacesScreen(onBack = nav::popBackStack) }
             composable(Routes.REPORT) { ReportScreen(onBack = nav::popBackStack) }
             composable(Routes.BACKUP) { BackupScreen(onBack = nav::popBackStack) }
+            composable(Routes.SHEET) { SheetScreen(onBack = nav::popBackStack) }
         }
     }
 }

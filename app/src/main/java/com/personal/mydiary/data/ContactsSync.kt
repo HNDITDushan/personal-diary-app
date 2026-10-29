@@ -43,18 +43,11 @@ object ContactsSync {
                 }
                 val key = "$lookup|$eventType|$label"
                 val existing = db.occasions().byContactKey(key)
-                val occasion = Occasion(
-                    id = existing?.id ?: 0,
-                    name = if (type == OccasionType.SPECIAL && label.isNotBlank()) "$name – $label" else name,
-                    type = type,
-                    month = date.first,
-                    day = date.second,
-                    year = date.third,
-                    notes = existing?.notes.orEmpty(),
-                    contactKey = key,
-                )
+                val displayName = if (type == OccasionType.SPECIAL && label.isNotBlank()) "$name – $label" else name
+                val occasion = (existing ?: Occasion(name = "", type = type, month = 1, day = 1, contactKey = key))
+                    .copy(name = displayName, type = type, month = date.first, day = date.second, year = date.third)
                 if (existing == null) added++ else if (existing != occasion) updated++
-                if (existing != occasion) db.occasions().upsert(occasion)
+                if (existing != occasion) db.occasions().save(occasion)
             }
         }
         Result(added, updated)

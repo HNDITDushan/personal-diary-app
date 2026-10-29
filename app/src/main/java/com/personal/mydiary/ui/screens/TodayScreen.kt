@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.personal.mydiary.data.save
 import com.personal.mydiary.Routes
 import com.personal.mydiary.data.DayMood
 import com.personal.mydiary.data.DiaryEntry
@@ -121,7 +122,7 @@ fun TodayScreen(onOpen: (String) -> Unit) {
                 Spacer(Modifier.padding(6.dp))
                 MoodPicker(mood?.mood) { selected ->
                     app.launch {
-                        if (selected == null) moods().deleteOn(dayNum) else moods().upsert(DayMood(dayNum, selected, mood?.note.orEmpty()))
+                        if (selected == null) moods().deleteOn(dayNum) else moods().save(DayMood(dayNum, selected, mood?.note.orEmpty()))
                     }
                 }
                 if (unrated.isNotEmpty()) {
@@ -178,7 +179,7 @@ fun TodayScreen(onOpen: (String) -> Unit) {
                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                 leadingContent = {
                     Checkbox(checked = false, onCheckedChange = {
-                        app.launch { tasks().upsert(task.copy(done = true, completedAt = System.currentTimeMillis())) }
+                        app.launch { tasks().save(task.copy(done = true, completedAt = System.currentTimeMillis())) }
                     })
                 },
                 headlineContent = { Text(task.title) },

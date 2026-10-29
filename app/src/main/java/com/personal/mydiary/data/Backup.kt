@@ -69,6 +69,8 @@ object Backup {
             db.moods().clear(); db.moods().insertAll(data.moods)
         }
         db.appointments().upcoming(System.currentTimeMillis()).forEach { AppointmentReminders.schedule(context, it) }
+        // Restored records are older than the last sheet sync; without a reset they would look deleted from the sheet.
+        SheetSettings(context).resetSyncState()
         data.itemCount
     }
 

@@ -4,6 +4,9 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import kotlinx.serialization.Serializable
+import java.util.UUID
+
+fun newUid(): String = UUID.randomUUID().toString()
 
 enum class Priority { LOW, NORMAL, HIGH }
 
@@ -26,6 +29,9 @@ data class TaskItem(
     val done: Boolean = false,
     val completedAt: Long? = null,
     val createdAt: Long = System.currentTimeMillis(),
+    /** Stable id shared with the Google Sheet; [updatedAt] is when this record last changed on the phone. */
+    val uid: String = newUid(),
+    val updatedAt: Long = System.currentTimeMillis(),
 )
 
 @Serializable
@@ -38,6 +44,9 @@ data class Appointment(
     val notes: String = "",
     /** Minutes before [startAt] to remind; 0 disables the reminder. */
     val remindMinutesBefore: Int = 30,
+    /** Stable id shared with the Google Sheet; [updatedAt] is when this record last changed on the phone. */
+    val uid: String = newUid(),
+    val updatedAt: Long = System.currentTimeMillis(),
 )
 
 @Serializable
@@ -51,6 +60,9 @@ data class DiaryEntry(
     val title: String,
     val details: String = "",
     val people: String = "",
+    /** Stable id shared with the Google Sheet; [updatedAt] is when this record last changed on the phone. */
+    val uid: String = newUid(),
+    val updatedAt: Long = System.currentTimeMillis(),
 )
 
 /** A yearly recurring day: birthday, anniversary or other special day. */
@@ -66,6 +78,9 @@ data class Occasion(
     val notes: String = "",
     /** Set for entries imported from the phone's (Google) contacts. */
     val contactKey: String? = null,
+    /** Stable id shared with the Google Sheet; [updatedAt] is when this record last changed on the phone. */
+    val uid: String = newUid(),
+    val updatedAt: Long = System.currentTimeMillis(),
 )
 
 @Serializable
@@ -78,6 +93,9 @@ data class Place(
     val longitude: Double? = null,
     val date: Long,
     val notes: String = "",
+    /** Stable id shared with the Google Sheet; [updatedAt] is when this record last changed on the phone. */
+    val uid: String = newUid(),
+    val updatedAt: Long = System.currentTimeMillis(),
 )
 
 @Serializable
@@ -86,4 +104,5 @@ data class DayMood(
     @PrimaryKey val date: Long,
     val mood: Mood,
     val note: String = "",
+    val updatedAt: Long = System.currentTimeMillis(),
 )

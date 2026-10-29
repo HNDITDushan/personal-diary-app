@@ -12,6 +12,7 @@ A personal day-to-day diary and organiser. Kotlin, Jetpack Compose (Material 3),
 | **Events** | **Appointments** (with reminder notification) and **Special days**: birthdays, anniversaries, other yearly days. **Sync from contacts** imports birthdays and anniversaries from your Google contacts |
 | **More → Places I visited** | Save a place with your current GPS location (address filled in automatically); open it in Google Maps |
 | **More → Monthly report** | Happiness score for the month, with a verdict (happy / mixed / unhappy), a mood calendar, the list of good deeds ("How I helped others"), and counts of tasks, activities, memories and places |
+| **More → Google Sheet** | Two-way sync with a Google Sheet: everything in the app is copied to the sheet (one tab each for Tasks, Appointments, Activities, Memories, Good deeds, Special days, Places, Moods), and rows you add, change or delete in the sheet are applied in the app. Syncs about a minute after each change and every hour, or on demand |
 | **More → Backup & restore** | Back up everything to one `.json` file, saved to the phone **or Google Drive** (pick "Drive" in the file picker). Restore from either location |
 
 Daily notification at 8:00 for today's birthdays and special days, tasks due, and appointments. On the last day of each month a notification reminds you to check your monthly report.
@@ -27,6 +28,17 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 ```
 
 The APK is written to `app/build/outputs/apk/debug/app-debug.apk`. Copy it to your phone, or install it over USB with `adb install`.
+
+## Google Sheet set-up
+
+The app talks to a small Google Apps Script ([app/src/main/res/raw/sheet_script.js](app/src/main/res/raw/sheet_script.js)) attached to your sheet, so no Google Cloud project or API key is needed.
+
+1. Create an empty Google Sheet (`sheets.new`).
+2. **Extensions → Apps Script**, replace the code with the script. In the app, **More → Google Sheet → Copy script** (or **Send to computer**) gives you the script with your secret key already filled in.
+3. **Deploy → New deployment → Web app**, *Execute as:* Me, *Who has access:* Anyone → **Deploy**, and authorise it.
+4. Paste the **Web app URL** into the app and tap **Connect**. The first sync creates the tabs.
+
+When the same record is changed in both the app and the sheet between syncs, the app's version wins. The grey `uid` and `updatedAt` columns are bookkeeping; leave them empty for new rows.
 
 ## Notes
 

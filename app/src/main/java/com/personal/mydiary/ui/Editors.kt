@@ -32,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.personal.mydiary.data.save
 import com.personal.mydiary.data.Appointment
 import com.personal.mydiary.data.DiaryEntry
 import com.personal.mydiary.data.EntryType
@@ -100,7 +101,7 @@ fun TaskEditor(initial: TaskItem?, onDismiss: () -> Unit) {
             val item = (initial ?: TaskItem(title = "")).copy(
                 title = title.trim(), notes = notes.trim(), dueDate = due?.toEpochDay(), priority = priority,
             )
-            app.launch { tasks().upsert(item) }
+            app.launch { tasks().save(item) }
             onDismiss()
         },
         onDelete = initial?.let { { app.launch { tasks().delete(it) }; onDismiss() } },
@@ -137,7 +138,7 @@ fun EntryEditor(type: EntryType, initial: DiaryEntry?, onDismiss: () -> Unit, de
                 date = date.toEpochDay(), time = time?.toStored().orEmpty(),
                 title = title.trim(), details = details.trim(), people = people.trim(),
             )
-            app.launch { entries().upsert(item) }
+            app.launch { entries().save(item) }
             onDismiss()
         },
         onDelete = initial?.let { { app.launch { entries().delete(it) }; onDismiss() } },
@@ -191,7 +192,7 @@ fun PlaceEditor(initial: Place?, onDismiss: () -> Unit) {
                 name = name.trim(), address = address.trim(), notes = notes.trim(), date = date.toEpochDay(),
                 latitude = coords?.first, longitude = coords?.second,
             )
-            app.launch { places().upsert(item) }
+            app.launch { places().save(item) }
             onDismiss()
         },
         onDelete = initial?.let { { app.launch { places().delete(it) }; onDismiss() } },
@@ -248,7 +249,7 @@ fun AppointmentEditor(initial: Appointment?, onDismiss: () -> Unit) {
                 startAt = date.atTime(time).toMillis(), remindMinutesBefore = remind,
             )
             app.launch {
-                val newId = appointments().upsert(item)
+                val newId = appointments().save(item)
                 AppointmentReminders.schedule(context.applicationContext, if (item.id == 0L) item.copy(id = newId) else item)
             }
             onDismiss()
@@ -292,7 +293,7 @@ fun OccasionEditor(initial: Occasion?, onDismiss: () -> Unit) {
                 name = name.trim(), type = type, notes = notes.trim(),
                 month = date.monthValue, day = date.dayOfMonth, year = if (knowYear) date.year else null,
             )
-            app.launch { occasions().upsert(item) }
+            app.launch { occasions().save(item) }
             onDismiss()
         },
         onDelete = initial?.let { { app.launch { occasions().delete(it) }; onDismiss() } },

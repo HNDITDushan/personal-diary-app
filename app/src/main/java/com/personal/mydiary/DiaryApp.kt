@@ -6,6 +6,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.personal.mydiary.data.AppDatabase
 import com.personal.mydiary.work.DailyWorker
 import com.personal.mydiary.work.Notifications
+import com.personal.mydiary.work.SheetSyncWorker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -18,13 +19,18 @@ class DiaryApp : Application() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     fun launch(block: suspend AppDatabase.() -> Unit) {
-        scope.launch { db.block() }
+        scope.launch {
+            db.block()
+            SheetSyncWorker.syncSoon(this@DiaryApp)
+        }
     }
 
     override fun onCreate() {
         super.onCreate()
         Notifications.createChannel(this)
         DailyWorker.schedule(this)
+        SheetSyncWorker.schedule(this)
+        SheetSyncWorker.syncSoon(this, delaySeconds = 5)
     }
 }
 
