@@ -63,11 +63,10 @@ import java.time.YearMonth
 import java.time.format.TextStyle
 import java.util.Locale
 
-/** Happiness score 0–100: good days count fully, fair days half, bad days not at all. */
+/** Happiness score 0–100: the average of each rated day's [Mood.points]. */
 private fun happinessScore(moods: List<DayMood>): Int? {
     if (moods.isEmpty()) return null
-    val points = moods.sumOf { m -> when (m.mood) { Mood.GOOD -> 100; Mood.FAIR -> 50; Mood.BAD -> 0 }.toInt() }
-    return (points.toDouble() / moods.size).roundToInt()
+    return (moods.sumOf { it.mood.points }.toDouble() / moods.size).roundToInt()
 }
 
 private fun verdict(score: Int): Pair<Mood, String> = when {
@@ -141,11 +140,13 @@ fun ReportScreen(onBack: () -> Unit) {
                                 modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
                             )
                             Spacer(Modifier.height(12.dp))
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                                Mood.entries.forEach { m ->
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text(m.emoji, fontSize = 24.sp)
-                                        Text("${moods.count { it.mood == m }} ${m.label.lowercase()}")
+                            Mood.entries.chunked(3).forEach { row ->
+                                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                                    row.forEach { m ->
+                                        Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Text(m.emoji, fontSize = 24.sp)
+                                            Text("${moods.count { it.mood == m }} ${m.label.lowercase()}")
+                                        }
                                     }
                                 }
                             }

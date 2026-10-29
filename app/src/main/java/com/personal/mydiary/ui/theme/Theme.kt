@@ -43,6 +43,9 @@ val Mood.emoji: String
         Mood.GOOD -> "😊"
         Mood.FAIR -> "😐"
         Mood.BAD -> "😞"
+        Mood.ANGRY -> "😠"
+        Mood.TIRED -> "😴"
+        Mood.BUSY -> "🤯"
     }
 
 val Mood.label: String
@@ -50,6 +53,9 @@ val Mood.label: String
         Mood.GOOD -> "Good"
         Mood.FAIR -> "Fair"
         Mood.BAD -> "Bad"
+        Mood.ANGRY -> "Angry"
+        Mood.TIRED -> "Tired"
+        Mood.BUSY -> "Busy"
     }
 
 val Mood.color: Color
@@ -57,4 +63,7 @@ val Mood.color: Color
         Mood.GOOD -> Color(0xFF43A047)
         Mood.FAIR -> Color(0xFFF9A825)
         Mood.BAD -> Color(0xFFE53935)
+        Mood.ANGRY -> Color(0xFFD84315)
+        Mood.TIRED -> Color(0xFF78909C)
+        Mood.BUSY -> Color(0xFF1E88E5)
     }

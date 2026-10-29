@@ -274,7 +274,10 @@ object SheetSync {
     // ---- Tabs ----
 
     private val priorities = mapOf(Priority.LOW to "Low", Priority.NORMAL to "Normal", Priority.HIGH to "High")
-    private val moodNames = mapOf(Mood.GOOD to "Good", Mood.FAIR to "Fair", Mood.BAD to "Bad")
+    private val moodNames = mapOf(
+        Mood.GOOD to "Good", Mood.FAIR to "Fair", Mood.BAD to "Bad",
+        Mood.ANGRY to "Angry", Mood.TIRED to "Tired", Mood.BUSY to "Busy",
+    )
     private val occasionNames = mapOf(
         OccasionType.BIRTHDAY to "Birthday", OccasionType.ANNIVERSARY to "Anniversary", OccasionType.SPECIAL to "Special day",
     )
@@ -494,6 +497,9 @@ object SheetSync {
         "😊", "🙂", "😀", "happy", "great" -> Mood.GOOD
         "😐", "ok", "okay", "normal", "average" -> Mood.FAIR
         "😞", "🙁", "😢", "sad", "unhappy" -> Mood.BAD
+        "😠", "😡", "😤", "mad", "angry" -> Mood.ANGRY
+        "😴", "🥱", "sleepy", "exhausted" -> Mood.TIRED
+        "🤯", "💼", "hectic" -> Mood.BUSY
         else -> null
     }
 

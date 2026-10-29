@@ -225,30 +225,34 @@ fun EmptyState(icon: ImageVector, text: String) {
     }
 }
 
-/** Three smiley buttons; tapping the selected one again clears the rating. */
+/** Smiley buttons in rows of three; tapping the selected one again clears the rating. */
 @Composable
 fun MoodPicker(selected: Mood?, onSelect: (Mood?) -> Unit) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-        Mood.entries.forEach { mood ->
-            val isSelected = mood == selected
-            Surface(
-                onClick = { onSelect(if (isSelected) null else mood) },
-                shape = RoundedCornerShape(20.dp),
-                color = if (isSelected) mood.color.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surface,
-                border = BorderStroke(if (isSelected) 2.dp else 1.dp, if (isSelected) mood.color else MaterialTheme.colorScheme.outlineVariant),
-            ) {
-                Column(
-                    Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(mood.emoji, fontSize = 36.sp)
-                    Text(
-                        mood.label,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = if (isSelected) mood.color else MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Mood.entries.chunked(3).forEach { row ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                row.forEach { mood -> MoodButton(mood, mood == selected, Modifier.weight(1f)) { onSelect(it) } }
             }
+        }
+    }
+}
+
+@Composable
+private fun MoodButton(mood: Mood, isSelected: Boolean, modifier: Modifier, onSelect: (Mood?) -> Unit) {
+    Surface(
+        onClick = { onSelect(if (isSelected) null else mood) },
+        modifier = modifier,
+        shape = RoundedCornerShape(20.dp),
+        color = if (isSelected) mood.color.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surface,
+        border = BorderStroke(if (isSelected) 2.dp else 1.dp, if (isSelected) mood.color else MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Column(Modifier.padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(mood.emoji, fontSize = 32.sp)
+            Text(
+                mood.label,
+                style = MaterialTheme.typography.labelLarge,
+                color = if (isSelected) mood.color else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

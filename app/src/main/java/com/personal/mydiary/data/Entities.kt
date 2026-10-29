@@ -13,7 +13,11 @@ enum class Priority { LOW, NORMAL, HIGH }
 /** Kinds of diary entries recorded against a day. */
 enum class EntryType { ACTIVITY, MEMORY, GOOD_DEED }
 
-enum class Mood { GOOD, FAIR, BAD }
+/**
+ * How a day felt. [points] (0–100) feed the monthly happiness score. Moods are stored by name,
+ * so new ones can be added at the end without a database change.
+ */
+enum class Mood(val points: Int) { GOOD(100), FAIR(50), BAD(0), ANGRY(0), TIRED(30), BUSY(60) }
 
 enum class OccasionType { BIRTHDAY, ANNIVERSARY, SPECIAL }
 

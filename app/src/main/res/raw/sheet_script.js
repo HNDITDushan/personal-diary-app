@@ -150,11 +150,16 @@ function reply(obj) {
 
 const VIEW_TABS = ['Dashboard', 'Timeline'];
 
+// points (0–100) feed the happiness score; keep in step with Mood in the app.
 const MOOD_STYLE = {
-  Good: { emoji: '😊', color: '#c8e6c9' },
-  Fair: { emoji: '😐', color: '#fff3c4' },
-  Bad: { emoji: '😞', color: '#ffcdd2' },
+  Good: { emoji: '😊', color: '#c8e6c9', points: 100 },
+  Fair: { emoji: '😐', color: '#fff3c4', points: 50 },
+  Bad: { emoji: '😞', color: '#ffcdd2', points: 0 },
+  Angry: { emoji: '😠', color: '#ffccbc', points: 0 },
+  Tired: { emoji: '😴', color: '#cfd8dc', points: 30 },
+  Busy: { emoji: '🤯', color: '#bbdefb', points: 60 },
 };
+const MOODS = Object.keys(MOOD_STYLE);
 
 const KINDS = {
   activity: { label: '📝 Activity', color: '#e8eaf6' },
@@ -238,6 +243,9 @@ function moodName(v) {
   if (s.indexOf('good') === 0 || s === '😊' || s === 'happy') return 'Good';
   if (s.indexOf('fair') === 0 || s === '😐' || s === 'ok' || s === 'okay') return 'Fair';
   if (s.indexOf('bad') === 0 || s === '😞' || s === 'sad') return 'Bad';
+  if (s.indexOf('angr') === 0 || s === '😠' || s === '😡' || s === 'mad') return 'Angry';
+  if (s.indexOf('tired') === 0 || s === '😴' || s === 'sleepy') return 'Tired';
+  if (s.indexOf('busy') === 0 || s === '🤯' || s === 'hectic') return 'Busy';
   return '';
 }
 
@@ -347,8 +355,9 @@ function monthLabel(ym) {
   return names[Number(ym.slice(5, 7)) - 1] + ' ' + ym.slice(0, 4);
 }
 
-function happiness(good, fair, rated) {
-  return rated === 0 ? '' : Math.round((good * 100 + fair * 50) / rated);
+/** Average of each rated day's mood points, 0–100. */
+function happiness(points, rated) {
+  return rated === 0 ? '' : Math.round(points / rated);
 }
 
 function verdict(score) {
@@ -376,7 +385,7 @@ function buildDashboard(ss, data, tz) {
   const today = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
   const thisMonth = today.slice(0, 7);
   const items = timelineItems(data, tz);
-  for (let c = 1; c <= 15; c++) sheet.setColumnWidth(c, c === 8 ? 24 : 96);
+  for (let c = 1; c <= 15; c++) sheet.setColumnWidth(c, 96);
 
   // Per-month statistics for the last 12 months.
   const months = [];
@@ -388,18 +397,19 @@ function buildDashboard(ss, data, tz) {
   }
   const stats = {};
   months.forEach(function (ym) {
-    stats[ym] = { rated: 0, Good: 0, Fair: 0, Bad: 0, deed: 0, activity: 0, memory: 0, place: 0, task: 0 };
+    stats[ym] = { rated: 0, points: 0, deed: 0, activity: 0, memory: 0, place: 0, task: 0 };
+    MOODS.forEach(function (m) { stats[ym][m] = 0; });
   });
   Object.keys(data.moods).forEach(function (day) {
     const s = stats[day.slice(0, 7)];
-    if (s) { s.rated++; s[data.moods[day].mood]++; }
+    if (s) { s.rated++; s[data.moods[day].mood]++; s.points += MOOD_STYLE[data.moods[day].mood].points; }
   });
   items.forEach(function (it) {
     const s = stats[it.day.slice(0, 7)];
     if (s && s[it.kind] !== undefined) s[it.kind]++;
   });
   const cur = stats[thisMonth];
-  const score = happiness(cur.Good, cur.Fair, cur.rated);
+  const score = happiness(cur.points, cur.rated);
 
   // Title and headline numbers.
   sheet.getRange(1, 1).setValue('📔 My Diary — Dashboard').setFontSize(20).setFontWeight('bold').setFontColor('#7b4fa0');
@@ -410,11 +420,11 @@ function buildDashboard(ss, data, tz) {
   const cards = [
     ['Happiness', score === '' ? '–' : score + ' / 100'],
     ['Days rated', cur.rated + ' / ' + new Date(Date.UTC(y0, m0, 0)).getUTCDate()],
-    ['😊 Good', cur.Good], ['😐 Fair', cur.Fair], ['😞 Bad', cur.Bad],
+  ].concat(MOODS.map(function (m) { return [MOOD_STYLE[m].emoji + ' ' + m, cur[m]]; })).concat([
     ['💛 Good deeds', cur.deed], ['📝 Activities', cur.activity], ['📍 Places', cur.place], ['✅ Tasks done', cur.task],
-  ];
+  ]);
   cards.forEach(function (card, i) {
-    const col = i < 7 ? i + 1 : i + 2; // skip the narrow spacer column H
+    const col = i + 1;
     sheet.getRange(6, col).setValue(card[0]).setFontColor('#616161').setHorizontalAlignment('center').setBackground('#f3eef8');
     sheet.getRange(7, col).setValue(String(card[1])).setNumberFormat('@').setFontSize(16).setFontWeight('bold')
       .setHorizontalAlignment('center').setBackground('#f3eef8');
@@ -473,7 +483,7 @@ function buildDashboard(ss, data, tz) {
     if (inDays > 30) return;
     const born = Number(r['Year']);
     const type = String(r['Type'] || 'Birthday');
-    const years = born > 1800 ? year - born : '';
+    const years = born >= 1910 ? year - born : ''; // earlier years are "unknown" placeholders such as 1904
     const emoji = type.indexOf('Anniv') === 0 ? '💞' : type.indexOf('Birth') === 0 ? '🎂' : '⭐';
     upcoming.push([inDays, [
       inDays === 0 ? 'Today 🎉' : inDays === 1 ? 'Tomorrow' : 'In ' + inDays + ' days',
@@ -496,11 +506,15 @@ function buildDashboard(ss, data, tz) {
 
   // Twelve-month trend table with charts below it.
   const top = Math.max(left, right) + 1;
-  const trendHeader = ['Month', 'Days rated', 'Good', 'Fair', 'Bad', 'Happiness', 'Good deeds', '', 'Activities', 'Memories', 'Places', 'Tasks done'];
+  // Columns: Month, Days rated, one per mood, Happiness, Good deeds, then the other counts.
+  const trendHeader = ['Month', 'Days rated'].concat(MOODS)
+    .concat(['Happiness', 'Good deeds', 'Activities', 'Memories', 'Places', 'Tasks done']);
   const trend = months.map(function (ym) {
     const s = stats[ym];
-    return [monthLabel(ym), s.rated, s.Good, s.Fair, s.Bad, happiness(s.Good, s.Fair, s.rated), s.deed, '', s.activity, s.memory, s.place, s.task];
+    return [monthLabel(ym), s.rated].concat(MOODS.map(function (m) { return s[m]; }))
+      .concat([happiness(s.points, s.rated), s.deed, s.activity, s.memory, s.place, s.task]);
   });
+  const happinessCol = 3 + MOODS.length;
   sheet.getRange(top, 1).setValue('📈 Last 12 months').setFontWeight('bold').setFontSize(13).setFontColor('#7b4fa0');
   sheet.getRange(top + 1, 1, 1, trendHeader.length).setValues([trendHeader]).setFontWeight('bold').setBackground('#ede7f6');
   sheet.getRange(top + 2, 1, trend.length, 1).setNumberFormat('@');
@@ -509,20 +523,21 @@ function buildDashboard(ss, data, tz) {
   const chartsRow = top + trend.length + 3;
 
   sheet.insertChart(sheet.newChart().setChartType(Charts.ChartType.LINE)
-    .addRange(domain).addRange(sheet.getRange(top + 1, 6, trend.length + 1, 1))
+    .addRange(domain).addRange(sheet.getRange(top + 1, happinessCol, trend.length + 1, 1))
     .setOption('title', 'Happiness score (0–100)').setOption('legend', { position: 'none' })
     .setOption('vAxis', { viewWindow: { min: 0, max: 100 } }).setOption('colors', ['#7b4fa0'])
     .setOption('pointSize', 6).setOption('width', 460).setOption('height', 280)
     .setPosition(chartsRow, 1, 0, 0).build());
 
   sheet.insertChart(sheet.newChart().setChartType(Charts.ChartType.COLUMN)
-    .addRange(domain).addRange(sheet.getRange(top + 1, 3, trend.length + 1, 3))
-    .setStacked().setOption('title', 'Days by mood').setOption('colors', ['#43a047', '#f9a825', '#e53935'])
+    .addRange(domain).addRange(sheet.getRange(top + 1, 3, trend.length + 1, MOODS.length))
+    .setStacked().setOption('title', 'Days by mood')
+    .setOption('colors', ['#43a047', '#f9a825', '#e53935', '#d84315', '#78909c', '#1e88e5'])
     .setOption('width', 460).setOption('height', 280)
     .setPosition(chartsRow, 6, 0, 0).build());
 
   sheet.insertChart(sheet.newChart().setChartType(Charts.ChartType.COLUMN)
-    .addRange(domain).addRange(sheet.getRange(top + 1, 7, trend.length + 1, 1))
+    .addRange(domain).addRange(sheet.getRange(top + 1, happinessCol + 1, trend.length + 1, 1))
     .setOption('title', 'Good deeds per month').setOption('legend', { position: 'none' }).setOption('colors', ['#e0457b'])
     .setOption('width', 460).setOption('height', 280)
     .setPosition(chartsRow, 11, 0, 0).build());

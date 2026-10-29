@@ -53,6 +53,9 @@ object ContactsSync {
         Result(added, updated)
     }
 
+    /** Birth years before this are placeholders for "year unknown". */
+    const val MIN_REAL_YEAR = 1910
+
     private val fullDate = Regex("""^(\d{4})-(\d{1,2})-(\d{1,2})""")
     private val noYear = Regex("""^--(\d{1,2})-?(\d{1,2})""")
     private val compact = Regex("""^(\d{4})(\d{2})(\d{2})$""")
@@ -65,7 +68,7 @@ object ContactsSync {
             ?: noYear.find(s)?.destructured?.let { (m, d) -> Triple(0, m.toInt(), d.toInt()) }
             ?: return null
         if (m !in 1..12 || d !in 1..31) return null
-        // Google uses placeholder years such as 1604 when the year is unknown.
-        return Triple(m, d, y.takeIf { it >= 1900 })
+        // Contacts apps store placeholder years such as 1604 or 1904 when the year is unknown.
+        return Triple(m, d, y.takeIf { it >= MIN_REAL_YEAR })
     }
 }
