@@ -26,6 +26,8 @@ import javax.crypto.spec.GCMParameterSpec
 class StatementPasswords(context: Context) {
     private val prefs = context.getSharedPreferences("statement_passwords", Context.MODE_PRIVATE)
 
+    fun has(accountUid: String): Boolean = prefs.contains(accountUid)
+
     fun get(accountUid: String): String? {
         val stored = prefs.getString(accountUid, null) ?: return null
         return runCatching {

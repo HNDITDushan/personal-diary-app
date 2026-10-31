@@ -151,6 +151,7 @@ fun CardsTab(accounts: List<Account>, txns: List<MoneyTxn>, statements: List<Car
                     card = card,
                     txns = txns.filter { it.accountId == card.id || it.counterAccountId == card.id },
                     statements = statements.filter { it.accountId == card.id },
+                    hasPassword = passwords.has(card.uid),
                     uploadEnabled = !busy,
                     onUpload = {
                         pickingFor = card
@@ -229,7 +230,7 @@ fun CardsTab(accounts: List<Account>, txns: List<MoneyTxn>, statements: List<Car
 
 @Composable
 private fun CardPanel(
-    card: Account, txns: List<MoneyTxn>, statements: List<CardStatement>, uploadEnabled: Boolean,
+    card: Account, txns: List<MoneyTxn>, statements: List<CardStatement>, hasPassword: Boolean, uploadEnabled: Boolean,
     onUpload: () -> Unit, onStatement: (CardStatement) -> Unit,
 ) {
     val thisYear = Year.now().value
@@ -259,6 +260,12 @@ private fun CardPanel(
             Spacer(Modifier.width(8.dp))
             Text("Upload statement (PDF)")
         }
+        Text(
+            if (hasPassword) "🔒 Statement password saved" else "No statement password saved. Add it under Accounts, or enter it when asked.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp),
+        )
         if (statements.isNotEmpty()) {
             SectionTitle("Statements")
             statements.forEach { s ->

@@ -32,7 +32,7 @@ The APK is written to `app/build/outputs/apk/debug/app-debug.apk`. Copy it to yo
 
 ## Credit card statements
 
-Under **Money → Credit cards → Upload statement**, pick a statement PDF. If it is locked, the app asks for its password and can remember it per card, encrypted with an Android Keystore key. Saved passwords are left out of backups, so they must be typed again on a new phone.
+Under **Money → Credit cards → Upload statement**, pick a statement PDF. Each card's PDF password can be saved in its account form under **Money → Accounts**, or when the app asks for it during an upload. It is encrypted with an Android Keystore key and never shown again. Saved passwords are left out of backups, so they must be typed again on a new phone.
 
 The app reads lines that start with a date and end with an amount, then shows them for review before saving anything. It compares the lines with the statement's own balances and warns about a difference. Lines already imported are left unticked, and tapping a statement lets you remove it with its entries. PDFs are not copied into the app, long card numbers are masked, and scanned image PDFs can't be read.
 

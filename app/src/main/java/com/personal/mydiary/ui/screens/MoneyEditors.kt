@@ -8,6 +8,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -19,6 +20,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import com.personal.mydiary.data.Account
 import com.personal.mydiary.data.AccountType
 import com.personal.mydiary.data.MoneyTxn
@@ -196,6 +199,11 @@ fun AccountEditor(initial: Account?, defaultType: AccountType, onDismiss: () -> 
         mutableStateOf(initial?.openingBalance?.takeIf { it != 0L }?.let { moneyInput(if (initial.type == AccountType.CREDIT_CARD) -it else it) }.orEmpty())
     }
     var limit by rememberSaveable { mutableStateOf(initial?.creditLimit?.let(::moneyInput).orEmpty()) }
+    val passwords = remember { StatementPasswords(context) }
+    // Kept out of saved instance state, and a saved password is never shown again.
+    var password by remember { mutableStateOf("") }
+    var showPassword by remember { mutableStateOf(false) }
+    var hasSavedPassword by remember { mutableStateOf(initial != null && passwords.has(initial.uid)) }
     val isCard = type == AccountType.CREDIT_CARD
     val balanceCents = if (balance.isBlank()) 0L else parseMoney(balance)
 
@@ -211,6 +219,10 @@ fun AccountEditor(initial: Account?, defaultType: AccountType, onDismiss: () -> 
                 creditLimit = if (isCard) parseMoney(limit) else null,
                 archived = archived,
             )
+            when {
+                !isCard || !hasSavedPassword && password.isEmpty() -> passwords.clear(item.uid)
+                password.isNotEmpty() -> passwords.set(item.uid, password)
+            }
             app.launch { accounts().save(item) }
             onDismiss()
         },
@@ -240,7 +252,32 @@ fun AccountEditor(initial: Account?, defaultType: AccountType, onDismiss: () -> 
             balance, { balance = it },
             if (isCard) "Amount owed before your first entry" else "Balance before your first entry",
         )
-        if (isCard) AmountInput(limit, { limit = it }, "Credit limit (optional)")
+        if (isCard) {
+            AmountInput(limit, { limit = it }, "Credit limit (optional)")
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it },
+                label = { Text(if (hasSavedPassword) "New statement password" else "Statement PDF password (optional)") },
+                supportingText = { Text("Kept encrypted on this phone, and used to open this card's statements.") },
+                singleLine = true,
+                visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                trailingIcon = {
+                    if (password.isNotEmpty()) {
+                        TextButton(onClick = { showPassword = !showPassword }) { Text(if (showPassword) "Hide" else "Show") }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            if (hasSavedPassword) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("🔒 Password saved", Modifier.weight(1f))
+                    TextButton(onClick = { hasSavedPassword = false }) {
+                        Text("Remove", color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            }
+        }
         if (initial != null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = archived, onCheckedChange = { archived = it })
