@@ -24,7 +24,9 @@ import com.personal.mydiary.R
 import com.personal.mydiary.data.AppDatabase
 import com.personal.mydiary.data.Appointment
 import com.personal.mydiary.data.OccasionType
+import com.personal.mydiary.data.nextDue
 import com.personal.mydiary.util.endMillis
+import com.personal.mydiary.util.formatMoney
 import com.personal.mydiary.util.millisToDateTime
 import com.personal.mydiary.util.nextOccurrence
 import com.personal.mydiary.util.startMillis
@@ -145,6 +147,16 @@ class DailyWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                 appointments.size.takeIf { it > 0 }?.let { "$it appointment(s)" },
             )
             Notifications.show(applicationContext, 2, "Your day", parts.joinToString(" · "))
+        }
+
+        val money = db.moneyTxns().getAll()
+        val loansDue = db.loans().getAll().mapNotNull { loan -> loan.nextDue(money)?.let { loan to it } }
+            .filter { (_, due) -> due == day || due == day.plusDays(3) }
+        if (loansDue.isNotEmpty()) {
+            val text = loansDue.joinToString("\n") { (loan, due) ->
+                "🏦 ${loan.name}: ${formatMoney(loan.installment)} " + if (due == day) "due today" else "due in 3 days"
+            }
+            Notifications.show(applicationContext, 4, "Loan installment", text)
         }
 
         if (day == day.withDayOfMonth(day.lengthOfMonth())) {

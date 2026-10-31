@@ -9,8 +9,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [TaskItem::class, Appointment::class, DiaryEntry::class, Occasion::class, Place::class, DayMood::class,
-        Account::class, MoneyTxn::class, CardStatement::class],
-    version = 4,
+        Account::class, MoneyTxn::class, CardStatement::class, Loan::class],
+    version = 5,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -23,6 +23,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun accounts(): AccountDao
     abstract fun moneyTxns(): MoneyTxnDao
     abstract fun statements(): StatementDao
+    abstract fun loans(): LoanDao
 
     companion object {
         const val NAME = "diary.db"
@@ -65,11 +66,21 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** Adds loans, and links money entries to them. */
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS `loans` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `lender` TEXT NOT NULL, `openingBalance` INTEGER NOT NULL, `originalAmount` INTEGER, `annualRate` REAL NOT NULL, `flatRate` INTEGER NOT NULL, `installment` INTEGER NOT NULL, `firstDueDate` INTEGER NOT NULL, `closed` INTEGER NOT NULL, `uid` TEXT NOT NULL, `updatedAt` INTEGER NOT NULL)")
+                db.execSQL("ALTER TABLE money_txns ADD COLUMN loanId INTEGER")
+                db.execSQL("ALTER TABLE money_txns ADD COLUMN interestPart INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_money_txns_loanId` ON `money_txns` (`loanId`)")
+            }
+        }
+
         @Volatile private var instance: AppDatabase? = null
 
         fun get(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, NAME)
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                 .build()
                 .also { instance = it }
         }

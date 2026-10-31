@@ -9,9 +9,10 @@ enum class AccountType { CASH, BANK, CREDIT_CARD }
 
 /**
  * What a money entry did. Transfers and card payments only move money between your own
- * accounts, so they never count as income or spending.
+ * accounts, so they never count as income or spending. Likewise money received from a loan
+ * isn't income, and only the interest part of a loan payment is a cost.
  */
-enum class TxnKind { INCOME, EXPENSE, TRANSFER, CARD_PAYMENT, INTEREST, FEE, REFUND }
+enum class TxnKind { INCOME, EXPENSE, TRANSFER, CARD_PAYMENT, INTEREST, FEE, REFUND, LOAN_PAYMENT, LOAN_RECEIVED }
 
 /** All amounts are whole cents; a credit card's balance is negative while money is owed on it. */
 @Serializable
@@ -30,7 +31,7 @@ data class Account(
 )
 
 @Serializable
-@Entity(tableName = "money_txns", indices = [Index("date"), Index("accountId"), Index("statementId")])
+@Entity(tableName = "money_txns", indices = [Index("date"), Index("accountId"), Index("statementId"), Index("loanId")])
 data class MoneyTxn(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val kind: TxnKind,
@@ -47,6 +48,9 @@ data class MoneyTxn(
     val statementId: Long? = null,
     /** Identifies an imported line so the same statement can't add it twice. */
     val dedupeKey: String? = null,
+    /** The loan this entry belongs to, and how much of a [TxnKind.LOAN_PAYMENT] was interest. */
+    val loanId: Long? = null,
+    val interestPart: Long = 0,
     val uid: String = newUid(),
     val updatedAt: Long = System.currentTimeMillis(),
 )
@@ -69,8 +73,8 @@ fun MoneyTxn.effectOn(account: Long): Long {
     var change = 0L
     if (accountId == account) {
         change += when (kind) {
-            TxnKind.INCOME, TxnKind.REFUND, TxnKind.CARD_PAYMENT -> amount
-            TxnKind.EXPENSE, TxnKind.INTEREST, TxnKind.FEE, TxnKind.TRANSFER -> -amount
+            TxnKind.INCOME, TxnKind.REFUND, TxnKind.CARD_PAYMENT, TxnKind.LOAN_RECEIVED -> amount
+            TxnKind.EXPENSE, TxnKind.INTEREST, TxnKind.FEE, TxnKind.TRANSFER, TxnKind.LOAN_PAYMENT -> -amount
         }
     }
     if (counterAccountId == account) {

@@ -54,8 +54,10 @@ import androidx.compose.ui.unit.dp
 import com.personal.mydiary.data.Account
 import com.personal.mydiary.data.AccountType
 import com.personal.mydiary.data.CardStatement
+import com.personal.mydiary.data.Loan
 import com.personal.mydiary.data.MoneyTxn
 import com.personal.mydiary.data.TxnKind
+import com.personal.mydiary.data.balance
 import com.personal.mydiary.data.effectOn
 import com.personal.mydiary.diaryApp
 import com.personal.mydiary.ui.DiaryScaffold
@@ -87,7 +89,10 @@ private class Totals(txns: List<MoneyTxn>) {
     val interest = sum(txns, TxnKind.INTEREST)
     val fees = sum(txns, TxnKind.FEE)
     val payments = sum(txns, TxnKind.CARD_PAYMENT)
-    val totalOut = spending + interest + fees
+    val loanInterest = txns.filter { it.kind == TxnKind.LOAN_PAYMENT }.sumOf { it.interestPart }
+    /** Repays debt rather than buying anything, so it isn't a cost. */
+    val loanPrincipal = sum(txns, TxnKind.LOAN_PAYMENT) - loanInterest
+    val totalOut = spending + interest + fees + loanInterest
     val net = income - totalOut
 }
 
@@ -97,6 +102,7 @@ fun MoneyScreen() {
     val accounts by remember { db.accounts().observeAll() }.collectAsState(initial = emptyList())
     val txns by remember { db.moneyTxns().observeAll() }.collectAsState(initial = emptyList())
     val statements by remember { db.statements().observeAll() }.collectAsState(initial = emptyList<CardStatement>())
+    val loans by remember { db.loans().observeAll() }.collectAsState(initial = emptyList())
 
     var tab by rememberSaveable { mutableStateOf(0) }
     var monthText by rememberSaveable { mutableStateOf(YearMonth.from(today()).toString()) }
@@ -115,15 +121,16 @@ fun MoneyScreen() {
     ) { padding ->
         Column(Modifier.padding(padding)) {
             PrimaryScrollableTabRow(selectedTabIndex = tab, edgePadding = 8.dp) {
-                listOf("Dashboard", "Entries", "Accounts", "Credit cards").forEachIndexed { i, title ->
+                listOf("Dashboard", "Entries", "Accounts", "Credit cards", "Loans").forEachIndexed { i, title ->
                     Tab(selected = tab == i, onClick = { tab = i }, text = { Text(title) })
                 }
             }
             when (tab) {
-                0 -> DashboardTab(month, { monthText = it.toString() }, accounts, txns)
+                0 -> DashboardTab(month, { monthText = it.toString() }, accounts, txns, loans)
                 1 -> EntriesTab(month, { monthText = it.toString() }, accounts, txns)
                 2 -> AccountsTab(accounts, txns)
-                else -> CardsTab(accounts, txns, statements)
+                3 -> CardsTab(accounts, txns, statements)
+                else -> LoansTab(accounts, txns, loans)
             }
         }
     }
@@ -163,11 +170,12 @@ private fun incomeColor() = if (isSystemInDarkTheme()) Color(0xFF3987E5) else Co
 private fun spendingColor() = if (isSystemInDarkTheme()) Color(0xFFD95926) else Color(0xFFEB6834)
 
 @Composable
-private fun DashboardTab(month: YearMonth, onMonth: (YearMonth) -> Unit, accounts: List<Account>, txns: List<MoneyTxn>) {
+private fun DashboardTab(month: YearMonth, onMonth: (YearMonth) -> Unit, accounts: List<Account>, txns: List<MoneyTxn>, loans: List<Loan>) {
     val monthTxns = remember(txns, month) { txns.filter { it.month() == month } }
     val totals = remember(monthTxns) { Totals(monthTxns) }
     val cashAndBank = accounts.filter { it.type != AccountType.CREDIT_CARD }.sumOf { it.balance(txns) }
     val owed = -accounts.filter { it.type == AccountType.CREDIT_CARD }.sumOf { it.balance(txns) }
+    val loansOwed = loans.filter { !it.closed }.sumOf { it.balance(txns) }
 
     LazyColumn(
         Modifier.fillMaxSize(),
@@ -180,6 +188,7 @@ private fun DashboardTab(month: YearMonth, onMonth: (YearMonth) -> Unit, account
                 StatTile("Credit cards owed", formatMoney(owed), Modifier.weight(1f))
             }
         }
+        if (loans.isNotEmpty()) item { StatTile("Loans owed", formatMoney(loansOwed)) }
         item { MonthSwitcher(month, onMonth) }
         item {
             InfoCard {
@@ -189,7 +198,7 @@ private fun DashboardTab(month: YearMonth, onMonth: (YearMonth) -> Unit, account
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
-                    "Income minus spending, interest and fees",
+                    "Income minus spending, interest and fees. Loan repayments aren't counted, only their interest.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -198,6 +207,8 @@ private fun DashboardTab(month: YearMonth, onMonth: (YearMonth) -> Unit, account
                 FigureLine("Spending", totals.spending)
                 FigureLine("Interest", totals.interest)
                 FigureLine("Fees", totals.fees)
+                if (totals.loanInterest > 0) FigureLine("Loan interest", totals.loanInterest)
+                if (totals.loanPrincipal > 0) FigureLine("Loan repaid (not a cost)", totals.loanPrincipal)
             }
         }
         item {
@@ -360,6 +371,7 @@ private enum class EntryFilter(val label: String, val kinds: Set<TxnKind>) {
     PAYMENTS("Payments", setOf(TxnKind.CARD_PAYMENT)),
     INTEREST("Interest & fees", setOf(TxnKind.INTEREST, TxnKind.FEE)),
     TRANSFERS("Transfers", setOf(TxnKind.TRANSFER)),
+    LOANS("Loans", setOf(TxnKind.LOAN_PAYMENT, TxnKind.LOAN_RECEIVED)),
 }
 
 @Composable

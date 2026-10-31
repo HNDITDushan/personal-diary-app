@@ -46,6 +46,9 @@ interface MoneyTxnDao {
     @Query("SELECT COUNT(*) FROM money_txns WHERE accountId = :accountId OR counterAccountId = :accountId")
     suspend fun countForAccount(accountId: Long): Int
 
+    @Query("SELECT COUNT(*) FROM money_txns WHERE loanId = :loanId")
+    suspend fun countForLoan(loanId: Long): Int
+
     @Query("DELETE FROM money_txns WHERE statementId = :statementId")
     suspend fun deleteForStatement(statementId: Long)
 
@@ -54,6 +57,18 @@ interface MoneyTxnDao {
     @Query("SELECT * FROM money_txns") suspend fun getAll(): List<MoneyTxn>
     @Insert suspend fun insertAll(items: List<MoneyTxn>)
     @Query("DELETE FROM money_txns") suspend fun clear()
+}
+
+@Dao
+interface LoanDao {
+    @Query("SELECT * FROM loans ORDER BY closed ASC, name ASC")
+    fun observeAll(): Flow<List<Loan>>
+
+    @Upsert suspend fun upsert(item: Loan): Long
+    @Delete suspend fun delete(item: Loan)
+    @Query("SELECT * FROM loans") suspend fun getAll(): List<Loan>
+    @Insert suspend fun insertAll(items: List<Loan>)
+    @Query("DELETE FROM loans") suspend fun clear()
 }
 
 @Dao

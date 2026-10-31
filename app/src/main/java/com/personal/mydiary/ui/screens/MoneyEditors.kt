@@ -52,6 +52,8 @@ val TxnKind.label: String
         TxnKind.INTEREST -> "Interest"
         TxnKind.FEE -> "Fee"
         TxnKind.REFUND -> "Refund"
+        TxnKind.LOAN_PAYMENT -> "Loan payment"
+        TxnKind.LOAN_RECEIVED -> "Loan received"
     }
 
 val TxnKind.emoji: String
@@ -63,6 +65,8 @@ val TxnKind.emoji: String
         TxnKind.INTEREST -> "📈"
         TxnKind.FEE -> "🧾"
         TxnKind.REFUND -> "↩️"
+        TxnKind.LOAN_PAYMENT -> "🏦"
+        TxnKind.LOAN_RECEIVED -> "🏦"
     }
 
 val AccountType.label: String
@@ -74,13 +78,13 @@ val AccountType.label: String
 
 /** Amount with + or − for money gained or spent; moves between your own accounts have no sign. */
 fun MoneyTxn.signedAmount(): String = when (kind) {
-    TxnKind.INCOME, TxnKind.REFUND -> "+" + formatMoney(amount)
-    TxnKind.EXPENSE, TxnKind.INTEREST, TxnKind.FEE -> "−" + formatMoney(amount)
+    TxnKind.INCOME, TxnKind.REFUND, TxnKind.LOAN_RECEIVED -> "+" + formatMoney(amount)
+    TxnKind.EXPENSE, TxnKind.INTEREST, TxnKind.FEE, TxnKind.LOAN_PAYMENT -> "−" + formatMoney(amount)
     TxnKind.TRANSFER, TxnKind.CARD_PAYMENT -> formatMoney(amount)
 }
 
 @Composable
-private fun AmountInput(value: String, onChange: (String) -> Unit, label: String) {
+fun AmountInput(value: String, onChange: (String) -> Unit, label: String) {
     OutlinedTextField(
         value = value,
         onValueChange = onChange,
@@ -94,6 +98,10 @@ private fun AmountInput(value: String, onChange: (String) -> Unit, label: String
 
 @Composable
 fun TxnEditor(initial: MoneyTxn?, defaultKind: TxnKind, onDismiss: () -> Unit) {
+    if (initial?.kind == TxnKind.LOAN_PAYMENT) {
+        LoanPaymentEditorFor(initial, onDismiss)
+        return
+    }
     val app = diaryApp()
     val allAccounts by remember { app.db.accounts().observeAll() }.collectAsState(initial = emptyList())
     val accounts = allAccounts.filter { !it.archived || it.id == initial?.accountId || it.id == initial?.counterAccountId }
@@ -122,7 +130,7 @@ fun TxnEditor(initial: MoneyTxn?, defaultKind: TxnKind, onDismiss: () -> Unit) {
     val cents = parseMoney(amount)
 
     val suggestions by remember(kind) { app.db.moneyTxns().observeSuggestions(kind.name) }.collectAsState(initial = emptyList())
-    val kinds = listOf(TxnKind.EXPENSE, TxnKind.INCOME, TxnKind.TRANSFER, TxnKind.CARD_PAYMENT, TxnKind.INTEREST, TxnKind.FEE, TxnKind.REFUND)
+    val kinds = (listOf(TxnKind.EXPENSE, TxnKind.INCOME, TxnKind.TRANSFER, TxnKind.CARD_PAYMENT, TxnKind.INTEREST, TxnKind.FEE, TxnKind.REFUND) + listOfNotNull(initial?.kind)).distinct()
 
     EditorDialog(
         title = if (initial == null) "New entry" else "Edit entry",
