@@ -61,13 +61,14 @@ import com.personal.mydiary.util.today
 import kotlinx.coroutines.launch
 
 @Composable
-fun EventsScreen() {
+fun EventsScreen(onBack: () -> Unit) {
     var tab by rememberSaveable { mutableStateOf(0) }
     var addAppointment by remember { mutableStateOf(false) }
     var addOccasion by remember { mutableStateOf(false) }
 
     DiaryScaffold(
         title = "Events",
+        onBack = onBack,
         floatingActionButton = {
             FloatingActionButton(onClick = { if (tab == 0) addAppointment = true else addOccasion = true }) {
                 Icon(Icons.Filled.Add, "Add")
@@ -119,6 +120,7 @@ private fun AppointmentsList() {
 private fun AppointmentRow(a: Appointment, onClick: () -> Unit) {
     val at = a.startAt.millisToDateTime()
     CompactRow(
+        emoji = "📅",
         headline = a.title,
         supporting = listOf(at.toLocalDate().format(dayFormat), a.location).filter { it.isNotBlank() }.joinToString(" · "),
         trailing = at.format(timeFormat),
@@ -196,7 +198,8 @@ private fun OccasionsList() {
                 if (o.contactKey != null) append(" · from contacts")
             }
             CompactRow(
-                headline = "${occasionEmoji(o.type)} ${o.name}",
+                emoji = occasionEmoji(o.type),
+                headline = o.name,
                 supporting = detail,
                 trailing = relativeDay(next),
                 highlight = next == day,

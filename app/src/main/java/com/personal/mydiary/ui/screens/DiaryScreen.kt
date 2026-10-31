@@ -98,7 +98,8 @@ fun DiaryScreen() {
                         item(key = "h$date") { SectionTitle(date.epochDayToDate().format(dayFormat)) }
                         items(dayEntries, key = { it.id }) { e ->
                             CompactRow(
-                                headline = "${entryEmoji(e.type)} ${e.title}",
+                                emoji = entryEmoji(e.type),
+                                headline = e.title,
                                 supporting = listOf(e.details, e.people.takeIf { it.isNotBlank() }?.let { "👥 $it" }.orEmpty())
                                     .filter { it.isNotBlank() }.joinToString("\n"),
                                 trailing = e.time.storedToTime()?.format(timeFormat).orEmpty(),

@@ -33,6 +33,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -75,13 +76,25 @@ import com.personal.mydiary.util.dayFormat
 import com.personal.mydiary.util.epochDayToDate
 import com.personal.mydiary.util.formatMoney
 import com.personal.mydiary.util.shortDayFormat
+import com.personal.mydiary.util.today
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.Year
 import java.time.ZoneId
 
 /** A statement read successfully and waiting for the user to check it. */
-private class PendingReview(val card: Account, val parsed: StatementParser.Result, val fileName: String, val lines: List<ReviewLine>)
+private class PendingReview(
+    val card: Account,
+    val parsed: StatementParser.Result,
+    val fileName: String,
+    val lines: List<ReviewLine>,
+    /** Lines already saved for this card, so an added line can't be saved twice. */
+    val imported: Set<String>,
+    val text: String,
+)
+
+/** Statement text that's safer to share: runs of digits such as card and phone numbers are hidden. */
+private fun maskNumbers(text: String) = text.replace(Regex("""\d(?:[ \-]?\d){7,}"""), "#####")
 
 /** What the password prompt is waiting on. */
 private class PasswordRequest(val card: Account, val uri: Uri, val wrongAttempt: Boolean)
@@ -112,7 +125,10 @@ fun CardsTab(accounts: List<Account>, txns: List<MoneyTxn>, statements: List<Car
                 if (parsed.lines.isEmpty()) {
                     unreadable = text
                 } else {
-                    review = PendingReview(card, parsed, StatementImport.fileName(context, uri), StatementImport.prepareReview(app.db, card, parsed))
+                    review = PendingReview(
+                        card, parsed, StatementImport.fileName(context, uri), StatementImport.prepareReview(app.db, card, parsed),
+                        app.db.moneyTxns().importedKeys(card.id).toSet(), text,
+                    )
                 }
             } catch (e: StatementImport.WrongPassword) {
                 passwordRequest = PasswordRequest(card, uri, wrongAttempt = password.isNotEmpty())
@@ -199,9 +215,8 @@ fun CardsTab(accounts: List<Account>, txns: List<MoneyTxn>, statements: List<Car
             dismissButton = {
                 if (text.isNotBlank()) {
                     TextButton(onClick = {
-                        val masked = text.replace(Regex("""\d[\d \-]{7,}\d"""), "#####")
                         context.getSystemService(ClipboardManager::class.java)
-                            .setPrimaryClip(ClipData.newPlainText("Statement layout", masked))
+                            .setPrimaryClip(ClipData.newPlainText("Statement layout", maskNumbers(text)))
                         Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
                     }) { Text("Copy text") }
                 }
@@ -340,6 +355,9 @@ private fun ReviewDialog(pending: PendingReview, onDismiss: () -> Unit, onImport
     val chosen = lines.filter { it.selected }
     fun sum(vararg kinds: TxnKind) = chosen.filter { it.line.kind in kinds }.sumOf { it.line.amount }
     val duplicates = lines.count { it.duplicate }
+    // Every line counts here, ticked or not: an already-imported line is still on the statement.
+    val checked = parsed.copy(lines = lines.map { it.line })
+    val context = LocalContext.current
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Surface(Modifier.fillMaxSize()) {
@@ -368,7 +386,24 @@ private fun ReviewDialog(pending: PendingReview, onDismiss: () -> Unit, onImport
                             PanelFigure("Fees", sum(TxnKind.FEE))
                             parsed.closingBalance?.let { PanelFigure("Statement balance", it) }
                             Spacer(Modifier.size(4.dp))
-                            ReconcileNote(parsed)
+                            ReconcileNote(checked)
+                            checked.difference?.takeIf { it > 0 }?.let { missing ->
+                                OutlinedButton(
+                                    onClick = {
+                                        val date = parsed.statementDate ?: today()
+                                        val key = "$date|$missing|INTERESTCHARGES|1"
+                                        val line = StatementParser.Line(date, "Interest charges", missing, TxnKind.INTEREST, "")
+                                        val duplicate = key in pending.imported
+                                        lines.add(ReviewLine(line, key, duplicate))
+                                    },
+                                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                                ) { Text("Add ${formatMoney(missing)} as interest") }
+                                Text(
+                                    "Tap the added line if it's a fee or something else.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                             if (duplicates > 0) {
                                 Text(
                                     "$duplicates already added before, so left unticked.",
@@ -376,6 +411,11 @@ private fun ReviewDialog(pending: PendingReview, onDismiss: () -> Unit, onImport
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
+                            TextButton(onClick = {
+                                context.getSystemService(ClipboardManager::class.java)
+                                    .setPrimaryClip(ClipData.newPlainText("Statement text", maskNumbers(pending.text)))
+                                Toast.makeText(context, "Copied. Check it before sharing; names and transactions are included.", Toast.LENGTH_LONG).show()
+                            }) { Text("Copy statement text (long numbers hidden)") }
                         }
                     }
                     itemsIndexed(lines) { i, item ->
@@ -397,7 +437,7 @@ private fun ReviewDialog(pending: PendingReview, onDismiss: () -> Unit, onImport
                 Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("Cancel") }
                     Button(onClick = { onImport(lines.toList()) }, enabled = chosen.isNotEmpty(), modifier = Modifier.weight(2f)) {
-                        Text("Add ${chosen.size} entries")
+                        Text("Add ${chosen.size} " + if (chosen.size == 1) "entry" else "entries")
                     }
                 }
             }

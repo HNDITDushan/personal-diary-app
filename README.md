@@ -10,7 +10,7 @@ A personal day-to-day diary and organiser. Kotlin, Jetpack Compose (Material 3),
 | **Tasks** | To-do list with due date, priority, notes; filter To do / Done / All; overdue tasks shown in red |
 | **Diary** | Daily **Activities**, **Memories** and **Good deeds** (who you helped), grouped by day |
 | **Events** | **Appointments** (with reminder notification) and **Special days**: birthdays, anniversaries, other yearly days. **Sync from contacts** imports birthdays and anniversaries from your Google contacts |
-| **Money** | **Dashboard** (balances, saved or overspent, 6-month chart, spending by category, card spending, payments, interest and fees), **Entries** (income, expenses, transfers, card payments), **Accounts** (cash, bank, credit cards), **Credit cards** (upload PDF statements), **Loans** (balance, installments, principal and interest on each payment, months and interest left, due-date reminders) |
+| **Money** | **Dashboard** (balances, saved or overspent, 6-month chart, spending by category, card spending, payments, interest and fees), **Entries** (income, expenses, transfers, card payments), **Accounts** (cash, bank, credit cards), **Credit cards** (upload PDF statements), **Loans** (balance, installments, principal and interest on each payment, months and interest left, due-date reminders, and a loan calculator) |
 | **More → Places I visited** | Save a place with your current GPS location (address filled in automatically); open it in Google Maps |
 | **More → Monthly report** | Happiness score for the month, with a verdict (happy / mixed / unhappy), a mood calendar, the list of good deeds ("How I helped others"), and counts of tasks, activities, memories and places |
 | **More → Google Sheet** | Two-way sync with a Google Sheet: everything in the app is copied to the sheet (one tab each for Tasks, Appointments, Activities, Memories, Good deeds, Special days, Places, Moods), and rows you add, change or delete in the sheet are applied in the app. Syncs about a minute after each change and every hour, or on demand |
@@ -34,7 +34,7 @@ The APK is written to `app/build/outputs/apk/debug/app-debug.apk`. Copy it to yo
 
 Under **Money → Credit cards → Upload statement**, pick a statement PDF. Each card's PDF password can be saved in its account form under **Money → Accounts**, or when the app asks for it during an upload. It is encrypted with an Android Keystore key and never shown again. Saved passwords are left out of backups, so they must be typed again on a new phone.
 
-The app reads lines that start with a date and end with an amount, then shows them for review before saving anything. It compares the lines with the statement's own balances and warns about a difference. Lines already imported are left unticked, and tapping a statement lets you remove it with its entries. PDFs are not copied into the app, long card numbers are masked, and scanned image PDFs can't be read.
+The app reads lines that start with a date and end with an amount, then shows them for review before saving anything. It compares the lines with the statement's own balances and warns about a difference. If lines come up short, for example when interest appears only in the summary, the difference can be added as an interest line. Lines already imported are left unticked, and tapping a statement lets you remove it with its entries. PDFs are not copied into the app, long card numbers are masked, and scanned image PDFs can't be read.
 
 Transfers and card payments only move money between your own accounts, so they don't count as income or spending. Only the interest part of a loan payment counts as a cost, and money received from a loan is not income. Money and loan data is included in backup files but is not synced to the Google Sheet.
 
@@ -57,6 +57,8 @@ The sheet's **My Diary → Refresh Dashboard & Timeline** menu rebuilds them aft
 When the same record is changed in both the app and the sheet between syncs, the app's version wins. The grey `uid` and `updatedAt` columns are bookkeeping; leave them empty for new rows.
 
 ## Notes
+
+- The app font is [Nunito](https://fonts.google.com/specimen/Nunito), used under the SIL Open Font License.
 
 - **Google birthdays** are read from the phone's contacts. Android syncs your Google account's contacts to the phone, so no Google sign-in or API key is needed.
 - **Google Drive backup** goes through Android's file picker, so the Google Drive app must be installed and signed in. Android's own automatic backup (Backup by Google One) also includes this app's data.

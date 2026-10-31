@@ -1,6 +1,8 @@
 package com.personal.mydiary.ui
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -31,6 +34,7 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -46,6 +50,7 @@ import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -53,6 +58,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -64,6 +72,8 @@ import com.personal.mydiary.data.save
 import com.personal.mydiary.data.DayMood
 import com.personal.mydiary.data.Mood
 import com.personal.mydiary.diaryApp
+import com.personal.mydiary.ui.theme.HeroEnd
+import com.personal.mydiary.ui.theme.HeroStart
 import com.personal.mydiary.ui.theme.color
 import com.personal.mydiary.ui.theme.emoji
 import com.personal.mydiary.ui.theme.label
@@ -111,6 +121,20 @@ fun EditorDialog(
     onDelete: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    var confirmingDelete by remember { mutableStateOf(false) }
+    if (confirmingDelete && onDelete != null) {
+        AlertDialog(
+            onDismissRequest = { confirmingDelete = false },
+            title = { Text("Delete this?") },
+            text = { Text("This will be removed for good.") },
+            confirmButton = {
+                TextButton(onClick = { confirmingDelete = false; onDelete() }) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirmingDelete = false }) { Text("Keep") } },
+        )
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         // Shrink above the keyboard so Save stays reachable while typing.
@@ -128,7 +152,7 @@ fun EditorDialog(
         dismissButton = {
             Row {
                 if (onDelete != null) {
-                    TextButton(onClick = onDelete) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+                    TextButton(onClick = { confirmingDelete = true }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
                 }
                 TextButton(onClick = onDismiss) { Text("Cancel") }
             }
@@ -237,8 +261,42 @@ fun SectionTitle(text: String, modifier: Modifier = Modifier) {
 fun InfoCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     Card(
         modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isSystemInDarkTheme()) 0.dp else 1.dp),
     ) { Column(Modifier.padding(16.dp), content = content) }
+}
+
+/** The colourful banner at the top of a screen; its text is white by default. */
+@Composable
+fun HeroCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    Box(
+        modifier.fillMaxWidth().clip(MaterialTheme.shapes.extraLarge)
+            .background(Brush.linearGradient(listOf(HeroStart, HeroEnd))),
+    ) {
+        CompositionLocalProvider(LocalContentColor provides Color.White) {
+            Column(Modifier.padding(20.dp), content = content)
+        }
+    }
+}
+
+/** A small see-through pill for use on a [HeroCard]. */
+@Composable
+fun HeroPill(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelMedium,
+        modifier = Modifier.clip(CircleShape).background(Color.White.copy(alpha = 0.2f)).padding(horizontal = 12.dp, vertical = 6.dp),
+    )
+}
+
+/** An emoji in a soft circle, marking what a row is. */
+@Composable
+fun EmojiBadge(emoji: String, modifier: Modifier = Modifier) {
+    Box(
+        modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)),
+        contentAlignment = Alignment.Center,
+    ) { Text(emoji, fontSize = 18.sp) }
 }
 
 @Composable

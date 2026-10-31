@@ -190,7 +190,8 @@ fun ReportScreen(onBack: () -> Unit) {
             }
             items(deeds, key = { it.id }) { d ->
                 CompactRow(
-                    headline = "💛 ${d.title}",
+                    emoji = "💛",
+                    headline = d.title,
                     supporting = listOf(d.people.takeIf { it.isNotBlank() }?.let { "Helped: $it" }.orEmpty(), d.details)
                         .filter { it.isNotBlank() }.joinToString("\n"),
                     trailing = d.date.epochDayToDate().format(shortDayFormat),

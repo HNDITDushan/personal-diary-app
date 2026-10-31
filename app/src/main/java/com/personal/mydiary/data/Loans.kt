@@ -83,3 +83,25 @@ fun suggestedInstallment(balance: Long, annualRate: Double, months: Int, flat: B
     if (r <= 0.0) return (balance.toDouble() / months).roundToLong()
     return (balance * r / (1 - (1 + r).pow(-months))).roundToLong()
 }
+
+data class ScheduleRow(val month: Int, val payment: Long, val interest: Long, val principal: Long, val balance: Long)
+
+/**
+ * Month-by-month repayment of [amount] at a fixed [installment]. With [months] given, that month's
+ * payment clears whatever is left, so rounding can't add an extra month or leave a remainder.
+ * Empty when the installment can't repay the loan.
+ */
+fun repaymentSchedule(amount: Long, annualRate: Double, flat: Boolean, installment: Long, months: Int? = null): List<ScheduleRow> {
+    val rows = mutableListOf<ScheduleRow>()
+    var left = amount
+    while (left > 0) {
+        val interest = monthlyInterest(left, annualRate, flat, amount)
+        if (installment <= interest || rows.size >= MAX_SCHEDULE_MONTHS) return emptyList()
+        val principal = if (rows.size + 1 == months) left else minOf(left, installment - interest)
+        left -= principal
+        rows += ScheduleRow(rows.size + 1, principal + interest, interest, principal, left)
+    }
+    return rows
+}
+
+private const val MAX_SCHEDULE_MONTHS = 1200

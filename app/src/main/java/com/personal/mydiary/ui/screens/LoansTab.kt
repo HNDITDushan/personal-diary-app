@@ -18,6 +18,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -65,7 +66,7 @@ import com.personal.mydiary.util.today
 import java.time.YearMonth
 
 @Composable
-fun LoansTab(accounts: List<Account>, txns: List<MoneyTxn>, loans: List<Loan>) {
+fun LoansTab(accounts: List<Account>, txns: List<MoneyTxn>, loans: List<Loan>, onCalculator: () -> Unit) {
     var adding by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<Loan?>(null) }
     var paying by remember { mutableStateOf<Loan?>(null) }
@@ -99,6 +100,7 @@ fun LoansTab(accounts: List<Account>, txns: List<MoneyTxn>, loans: List<Loan>) {
         }
         item {
             FilledTonalButton(onClick = { adding = true }, modifier = Modifier.fillMaxWidth()) { Text("Add loan") }
+            OutlinedButton(onClick = onCalculator, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) { Text("🧮  Loan calculator") }
         }
     }
 

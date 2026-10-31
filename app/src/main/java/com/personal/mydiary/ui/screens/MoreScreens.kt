@@ -8,14 +8,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.outlined.CloudUpload
-import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material.icons.outlined.Map
-import androidx.compose.material.icons.outlined.Place
-import androidx.compose.material.icons.outlined.TableChart
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -28,7 +25,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.personal.mydiary.Routes
@@ -45,24 +41,23 @@ import com.personal.mydiary.util.epochDayToDate
 @Composable
 fun MoreScreen(onOpen: (String) -> Unit) {
     DiaryScaffold(title = "More") { padding ->
-        Column(Modifier.padding(padding)) {
-            MoreItem(Icons.Outlined.Place, "Places I visited", "Save places with your location") { onOpen(Routes.PLACES) }
-            MoreItem(Icons.Outlined.Insights, "Monthly report", "Happy or unhappy? Good deeds, stats") { onOpen(Routes.REPORT) }
-            MoreItem(Icons.Outlined.TableChart, "Google Sheet", "View and add entries from a Google Sheet") { onOpen(Routes.SHEET) }
-            MoreItem(Icons.Outlined.CloudUpload, "Backup & restore", "Phone storage or Google Drive") { onOpen(Routes.BACKUP) }
+        Column(
+            Modifier.padding(padding).padding(horizontal = 16.dp, vertical = 8.dp).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            MoreItem("🎂", "Events", "Appointments, birthdays and special days") { onOpen(Routes.EVENTS) }
+            MoreItem("🧮", "Loan calculator", "Work out installments, interest and months") { onOpen(Routes.LOAN_CALCULATOR) }
+            MoreItem("📊", "Monthly report", "Were you happy? Good deeds and stats") { onOpen(Routes.REPORT) }
+            MoreItem("📍", "Places I visited", "Save places with your location") { onOpen(Routes.PLACES) }
+            MoreItem("📗", "Google Sheet", "View and add entries from a Google Sheet") { onOpen(Routes.SHEET) }
+            MoreItem("☁️", "Backup & restore", "Phone storage or Google Drive") { onOpen(Routes.BACKUP) }
         }
     }
 }
 
 @Composable
-private fun MoreItem(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
-    ListItem(
-        modifier = Modifier.clickable(onClick = onClick),
-        leadingContent = { Icon(icon, null) },
-        headlineContent = { Text(title) },
-        supportingContent = { Text(subtitle) },
-        trailingContent = { Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null) },
-    )
+private fun MoreItem(emoji: String, title: String, subtitle: String, onClick: () -> Unit) {
+    CompactRow(headline = title, supporting = subtitle, emoji = emoji, onClick = onClick)
 }
 
 @Composable

@@ -74,6 +74,54 @@ class LoansTest {
     }
 
     @Test
+    fun reducingScheduleEndsExactlyOnTime() {
+        val installment = suggestedInstallment(100_000_00, 12.0, 12, false, null)
+        val rows = repaymentSchedule(100_000_00, 12.0, false, installment, 12)
+        assertEquals(12, rows.size)
+        assertEquals(0L, rows.last().balance)
+        assertEquals(1_000_00L, rows.first().interest)
+        assertEquals(100_000_00L, rows.sumOf { it.principal })
+        assertEquals(rows.sumOf { it.payment }, 100_000_00L + rows.sumOf { it.interest })
+        assertTrue(rows.sumOf { it.interest } in 6_610_00L..6_630_00L)
+    }
+
+    @Test
+    fun flatScheduleChargesTheSameInterestEveryMonth() {
+        val installment = suggestedInstallment(120_000_00, 10.0, 12, true, 120_000_00)
+        val rows = repaymentSchedule(120_000_00, 10.0, true, installment, 12)
+        assertEquals(12, rows.size)
+        assertTrue(rows.all { it.interest == 1_000_00L })
+        assertEquals(12_000_00L, rows.sumOf { it.interest })
+        assertEquals(0L, rows.last().balance)
+    }
+
+    @Test
+    fun longTermsStillFinishOnTime() {
+        listOf(6 to 28.0, 60 to 14.5, 84 to 9.75, 240 to 11.0, 360 to 7.3).forEach { (months, rate) ->
+            val installment = suggestedInstallment(7_654_321_09, rate, months, false, null)
+            val rows = repaymentSchedule(7_654_321_09, rate, false, installment, months)
+            assertEquals(months, rows.size)
+            assertEquals(0L, rows.last().balance)
+            // Rounding is settled in the last payment, and stays small.
+            assertTrue(kotlin.math.abs(rows.last().payment - installment) < 100_00)
+        }
+    }
+
+    @Test
+    fun aKnownInstallmentGivesTheMonths() {
+        val rows = repaymentSchedule(100_000_00, 12.0, false, 20_000_00)
+        assertEquals(6, rows.size)
+        assertEquals(0L, rows.last().balance)
+        assertTrue(rows.last().payment <= 20_000_00)
+    }
+
+    @Test
+    fun scheduleIsEmptyWhenTheInstallmentNeverRepays() {
+        assertTrue(repaymentSchedule(100_000_00, 12.0, false, 1_000_00).isEmpty())
+        assertTrue(repaymentSchedule(100_000_00, 12.0, false, 0).isEmpty())
+    }
+
+    @Test
     fun installmentTooSmallNeverRepays() {
         assertNull(loan.copy(installment = 1_000_00).project(100_000_00))
         assertNull(loan.copy(installment = 0).project(100_000_00))

@@ -1,17 +1,24 @@
 package com.personal.mydiary.ui.screens
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.AutoAwesome
@@ -19,7 +26,8 @@ import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.DirectionsRun
 import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.Place
-import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
@@ -34,7 +42,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -47,7 +57,10 @@ import com.personal.mydiary.data.EntryType
 import com.personal.mydiary.data.TaskItem
 import com.personal.mydiary.data.TxnKind
 import com.personal.mydiary.diaryApp
+import com.personal.mydiary.ui.EmojiBadge
 import com.personal.mydiary.ui.EntryEditor
+import com.personal.mydiary.ui.HeroCard
+import com.personal.mydiary.ui.HeroPill
 import com.personal.mydiary.ui.InfoCard
 import com.personal.mydiary.ui.MoodDialog
 import com.personal.mydiary.ui.MoodPicker
@@ -77,6 +90,7 @@ private sealed interface QuickAdd {
     data object Expense : QuickAdd
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TodayScreen(onOpen: (String) -> Unit) {
     val app = diaryApp()
@@ -113,9 +127,19 @@ fun TodayScreen(onOpen: (String) -> Unit) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            Column {
-                Text(greeting(), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                Text(day.format(longDayFormat), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            HeroCard {
+                Text(greeting(), style = MaterialTheme.typography.headlineMedium)
+                Text(day.format(longDayFormat), style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.height(12.dp))
+                val specialToday = upcoming.count { it.second == day }
+                val pills = listOfNotNull(
+                    dueTasks.size.takeIf { it > 0 }?.let { "✅ $it task${if (it == 1) "" else "s"} due" },
+                    appointments.size.takeIf { it > 0 }?.let { "📅 $it appointment${if (it == 1) "" else "s"}" },
+                    specialToday.takeIf { it > 0 }?.let { "🎉 $it special today" },
+                ).ifEmpty { listOf("🌿 Nothing due today") }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    pills.forEach { HeroPill(it) }
+                }
             }
         }
 
@@ -142,13 +166,23 @@ fun TodayScreen(onOpen: (String) -> Unit) {
         }
 
         item {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                item { QuickChip("Task", Icons.Outlined.CheckCircle) { quickAdd = QuickAdd.Task } }
-                item { QuickChip("Activity", Icons.Outlined.DirectionsRun) { quickAdd = QuickAdd.Entry(EntryType.ACTIVITY) } }
-                item { QuickChip("Good deed", Icons.Outlined.Favorite) { quickAdd = QuickAdd.Entry(EntryType.GOOD_DEED) } }
-                item { QuickChip("Memory", Icons.Outlined.AutoAwesome) { quickAdd = QuickAdd.Entry(EntryType.MEMORY) } }
-                item { QuickChip("Place", Icons.Outlined.Place) { quickAdd = QuickAdd.Place } }
-                item { QuickChip("Income / expense", Icons.Outlined.AccountBalanceWallet) { quickAdd = QuickAdd.Expense } }
+            SectionTitle("Add something")
+            val actions = listOf(
+                Triple("Task", Icons.Outlined.CheckCircle, QuickAdd.Task),
+                Triple("Activity", Icons.Outlined.DirectionsRun, QuickAdd.Entry(EntryType.ACTIVITY)),
+                Triple("Good deed", Icons.Outlined.Favorite, QuickAdd.Entry(EntryType.GOOD_DEED)),
+                Triple("Memory", Icons.Outlined.AutoAwesome, QuickAdd.Entry(EntryType.MEMORY)),
+                Triple("Place", Icons.Outlined.Place, QuickAdd.Place),
+                Triple("Money", Icons.Outlined.AccountBalanceWallet, QuickAdd.Expense),
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                actions.chunked(3).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        row.forEach { (label, icon, action) ->
+                            QuickTile(label, icon, Modifier.weight(1f)) { quickAdd = action }
+                        }
+                    }
+                }
             }
         }
 
@@ -158,7 +192,8 @@ fun TodayScreen(onOpen: (String) -> Unit) {
                 val years = o.year?.let { date.year - it }
                 val detail = o.type.label + (years?.let { y -> if (y > 0) " · $y" + if (o.type.name == "BIRTHDAY") " years old" else " years" else "" } ?: "")
                 CompactRow(
-                    headline = "${occasionEmoji(o.type)} ${o.name}",
+                    emoji = occasionEmoji(o.type),
+                    headline = o.name,
                     supporting = detail,
                     trailing = relativeDay(date),
                     highlight = date == day,
@@ -197,6 +232,7 @@ fun TodayScreen(onOpen: (String) -> Unit) {
             item { SectionTitle("Appointments today") }
             items(appointments, key = { "a" + it.id }) { a ->
                 CompactRow(
+                    emoji = "📅",
                     headline = a.title,
                     supporting = a.location,
                     trailing = a.startAt.millisToDateTime().format(timeFormat),
@@ -216,7 +252,8 @@ fun TodayScreen(onOpen: (String) -> Unit) {
         }
         items(entries, key = { "e" + it.id }) { e ->
             CompactRow(
-                headline = "${entryEmoji(e.type)} ${e.title}",
+                emoji = entryEmoji(e.type),
+                headline = e.title,
                 supporting = listOf(e.details, e.people.takeIf { it.isNotBlank() }?.let { "👥 $it" }.orEmpty())
                     .filter { it.isNotBlank() }.joinToString("\n"),
                 trailing = e.time.storedToTime()?.format(timeFormat).orEmpty(),
@@ -247,10 +284,24 @@ private fun greeting(): String = when (LocalTime.now().hour) {
 }
 
 @Composable
-private fun QuickChip(text: String, icon: ImageVector, onClick: () -> Unit) {
-    AssistChip(onClick = onClick, label = { Text("+ $text") }, leadingIcon = { Icon(icon, null) })
+private fun QuickTile(text: String, icon: ImageVector, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Card(
+        onClick = onClick,
+        modifier = modifier,
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(
+                Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center,
+            ) { Icon(icon, null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer) }
+            Text(text, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 6.dp))
+        }
+    }
 }
 
+/** A row of content in a card: a small badge, what it is, and a figure or date on the right. */
 @Composable
 fun CompactRow(
     headline: String,
@@ -258,9 +309,15 @@ fun CompactRow(
     trailing: String = "",
     highlight: Boolean = false,
     onClick: (() -> Unit)? = null,
+    emoji: String? = null,
+    trailingColor: Color? = null,
 ) {
     InfoCard(modifier = if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier) {
-        Row {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (emoji != null) {
+                EmojiBadge(emoji)
+                Spacer(Modifier.width(12.dp))
+            }
             Column(Modifier.weight(1f)) {
                 Text(headline, style = MaterialTheme.typography.titleSmall)
                 if (supporting.isNotBlank()) {
@@ -272,8 +329,8 @@ fun CompactRow(
                 Text(
                     trailing,
                     style = MaterialTheme.typography.labelLarge,
-                    color = if (highlight) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary,
-                    fontWeight = if (highlight) FontWeight.Bold else null,
+                    color = trailingColor ?: if (highlight) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary,
+                    fontWeight = if (highlight) FontWeight.ExtraBold else null,
                 )
             }
         }

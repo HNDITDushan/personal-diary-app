@@ -34,7 +34,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.PrimaryScrollableTabRow
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -51,6 +51,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.personal.mydiary.Routes
 import com.personal.mydiary.data.Account
 import com.personal.mydiary.data.AccountType
 import com.personal.mydiary.data.CardStatement
@@ -62,6 +63,7 @@ import com.personal.mydiary.data.effectOn
 import com.personal.mydiary.diaryApp
 import com.personal.mydiary.ui.DiaryScaffold
 import com.personal.mydiary.ui.EmptyState
+import com.personal.mydiary.ui.HeroCard
 import com.personal.mydiary.ui.InfoCard
 import com.personal.mydiary.ui.SectionTitle
 import com.personal.mydiary.util.dayFormat
@@ -76,6 +78,10 @@ import java.time.format.DateTimeFormatter
 
 /** Account's balance now: its opening balance plus every entry's effect on it. */
 fun Account.balance(txns: List<MoneyTxn>): Long = openingBalance + txns.sumOf { it.effectOn(id) }
+
+/** Whether this account's money counts towards "Cash & bank". */
+val Account.countsInCashTotal: Boolean
+    get() = type != AccountType.CREDIT_CARD && !archived && !excludeFromTotal
 
 fun Account.displayName(): String = if (last4.isBlank()) name else "$name ••$last4"
 
@@ -97,7 +103,7 @@ private class Totals(txns: List<MoneyTxn>) {
 }
 
 @Composable
-fun MoneyScreen() {
+fun MoneyScreen(onOpen: (String) -> Unit) {
     val db = diaryApp().db
     val accounts by remember { db.accounts().observeAll() }.collectAsState(initial = emptyList())
     val txns by remember { db.moneyTxns().observeAll() }.collectAsState(initial = emptyList())
@@ -112,17 +118,23 @@ fun MoneyScreen() {
     DiaryScaffold(
         title = "Money",
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = { adding = true },
-                icon = { Icon(Icons.Filled.Add, null) },
-                text = { Text("Add entry") },
-            )
+            // The other tabs have their own add buttons, which this would otherwise sit on top of.
+            if (tab <= 1) {
+                ExtendedFloatingActionButton(
+                    onClick = { adding = true },
+                    icon = { Icon(Icons.Filled.Add, null) },
+                    text = { Text("Add entry") },
+                )
+            }
         },
     ) { padding ->
         Column(Modifier.padding(padding)) {
-            PrimaryScrollableTabRow(selectedTabIndex = tab, edgePadding = 8.dp) {
-                listOf("Dashboard", "Entries", "Accounts", "Credit cards", "Loans").forEachIndexed { i, title ->
-                    Tab(selected = tab == i, onClick = { tab = i }, text = { Text(title) })
+            // Five tabs fit side by side without the usual tab padding, so none is hidden off-screen.
+            PrimaryTabRow(selectedTabIndex = tab) {
+                listOf("Overview", "Entries", "Accounts", "Cards", "Loans").forEachIndexed { i, title ->
+                    Tab(selected = tab == i, onClick = { tab = i }) {
+                        Text(title, style = MaterialTheme.typography.labelLarge, maxLines = 1, modifier = Modifier.padding(vertical = 14.dp))
+                    }
                 }
             }
             when (tab) {
@@ -130,7 +142,7 @@ fun MoneyScreen() {
                 1 -> EntriesTab(month, { monthText = it.toString() }, accounts, txns)
                 2 -> AccountsTab(accounts, txns)
                 3 -> CardsTab(accounts, txns, statements)
-                else -> LoansTab(accounts, txns, loans)
+                else -> LoansTab(accounts, txns, loans) { onOpen(Routes.LOAN_CALCULATOR) }
             }
         }
     }
@@ -173,7 +185,7 @@ private fun spendingColor() = if (isSystemInDarkTheme()) Color(0xFFD95926) else 
 private fun DashboardTab(month: YearMonth, onMonth: (YearMonth) -> Unit, accounts: List<Account>, txns: List<MoneyTxn>, loans: List<Loan>) {
     val monthTxns = remember(txns, month) { txns.filter { it.month() == month } }
     val totals = remember(monthTxns) { Totals(monthTxns) }
-    val cashAndBank = accounts.filter { it.type != AccountType.CREDIT_CARD }.sumOf { it.balance(txns) }
+    val cashAndBank = accounts.filter { it.countsInCashTotal }.sumOf { it.balance(txns) }
     val owed = -accounts.filter { it.type == AccountType.CREDIT_CARD }.sumOf { it.balance(txns) }
     val loansOwed = loans.filter { !it.closed }.sumOf { it.balance(txns) }
 
@@ -191,7 +203,7 @@ private fun DashboardTab(month: YearMonth, onMonth: (YearMonth) -> Unit, account
         if (loans.isNotEmpty()) item { StatTile("Loans owed", formatMoney(loansOwed)) }
         item { MonthSwitcher(month, onMonth) }
         item {
-            InfoCard {
+            HeroCard {
                 Text(
                     (if (totals.net >= 0) "Saved " else "Overspent ") + formatMoney(kotlin.math.abs(totals.net)),
                     style = MaterialTheme.typography.headlineSmall,
@@ -200,7 +212,6 @@ private fun DashboardTab(month: YearMonth, onMonth: (YearMonth) -> Unit, account
                 Text(
                     "Income minus spending, interest and fees. Loan repayments aren't counted, only their interest.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(8.dp))
                 FigureLine("Income", totals.income)
@@ -228,6 +239,7 @@ private fun DashboardTab(month: YearMonth, onMonth: (YearMonth) -> Unit, account
             item { SectionTitle("Biggest expenses") }
             items(biggest, key = { it.id }) { t ->
                 CompactRow(
+                    emoji = t.kind.emoji,
                     headline = t.description.ifBlank { t.category.ifBlank { t.kind.label } },
                     supporting = listOf(accounts.firstOrNull { it.id == t.accountId }?.name.orEmpty(), t.date.epochDayToDate().format(dayFormat))
                         .filter { it.isNotBlank() }.joinToString(" · "),
@@ -434,9 +446,11 @@ private fun EntriesTab(month: YearMonth, onMonth: (YearMonth) -> Unit, accounts:
             items(dayTxns, key = { it.id }) { t ->
                 val time = t.time.storedToTime()?.format(timeFormat)
                 CompactRow(
-                    headline = "${t.kind.emoji} ${t.description.ifBlank { t.category.ifBlank { t.kind.label } }}",
+                    emoji = t.kind.emoji,
+                    headline = t.description.ifBlank { t.category.ifBlank { t.kind.label } },
                     supporting = listOfNotNull(time, names[t.accountId], t.category.takeIf { it.isNotBlank() }).joinToString(" · "),
                     trailing = t.signedAmount(),
+                    trailingColor = if (t.signedAmount().startsWith("+")) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurface,
                     onClick = { editing = t },
                 )
             }
@@ -462,10 +476,16 @@ private fun AccountsTab(accounts: List<Account>, txns: List<MoneyTxn>) {
     ) {
         item {
             SectionTitle("Cash & bank")
-            StatTile("Total", formatMoney(cashAndBank.sumOf { it.balance(txns) }))
+            StatTile("Total", formatMoney(cashAndBank.filter { it.countsInCashTotal }.sumOf { it.balance(txns) }))
         }
         items(cashAndBank, key = { it.id }) { a ->
-            CompactRow(a.displayName(), a.type.label, formatMoney(a.balance(txns)), onClick = { editing = a })
+            CompactRow(
+                a.displayName(),
+                a.type.label + if (a.excludeFromTotal) " · Not in total" else "",
+                formatMoney(a.balance(txns)),
+                onClick = { editing = a },
+                emoji = a.type.emoji,
+            )
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -478,7 +498,7 @@ private fun AccountsTab(accounts: List<Account>, txns: List<MoneyTxn>) {
             StatTile("Total owed", formatMoney(-cards.sumOf { it.balance(txns) }))
         }
         items(cards, key = { it.id }) { a ->
-            CompactRow(a.displayName(), "Owed", formatMoney(-a.balance(txns)), onClick = { editing = a })
+            CompactRow(a.displayName(), "Owed", formatMoney(-a.balance(txns)), onClick = { editing = a }, emoji = a.type.emoji)
         }
         item {
             FilledTonalButton(onClick = { addingType = AccountType.CREDIT_CARD }, modifier = Modifier.fillMaxWidth()) { Text("Add credit card") }
@@ -486,7 +506,7 @@ private fun AccountsTab(accounts: List<Account>, txns: List<MoneyTxn>) {
         if (hidden.isNotEmpty()) {
             item { SectionTitle("No longer used") }
             items(hidden, key = { it.id }) { a ->
-                CompactRow(a.displayName(), a.type.label, formatMoney(a.balance(txns)), onClick = { editing = a })
+                CompactRow(a.displayName(), a.type.label, formatMoney(a.balance(txns)), onClick = { editing = a }, emoji = a.type.emoji)
             }
         }
     }

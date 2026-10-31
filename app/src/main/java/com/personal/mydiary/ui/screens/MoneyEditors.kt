@@ -1,6 +1,7 @@
 package com.personal.mydiary.ui.screens
 
 import android.widget.Toast
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardOptions
@@ -70,6 +71,13 @@ val TxnKind.emoji: String
         TxnKind.REFUND -> "↩️"
         TxnKind.LOAN_PAYMENT -> "🏦"
         TxnKind.LOAN_RECEIVED -> "🏦"
+    }
+
+val AccountType.emoji: String
+    get() = when (this) {
+        AccountType.CASH -> "💵"
+        AccountType.BANK -> "🏦"
+        AccountType.CREDIT_CARD -> "💳"
     }
 
 val AccountType.label: String
@@ -195,6 +203,7 @@ fun AccountEditor(initial: Account?, defaultType: AccountType, onDismiss: () -> 
     var type by remember { mutableStateOf(initial?.type ?: defaultType) }
     var last4 by rememberSaveable { mutableStateOf(initial?.last4.orEmpty()) }
     var archived by remember { mutableStateOf(initial?.archived ?: false) }
+    var excludeFromTotal by remember { mutableStateOf(initial?.excludeFromTotal ?: false) }
     var balance by rememberSaveable {
         mutableStateOf(initial?.openingBalance?.takeIf { it != 0L }?.let { moneyInput(if (initial.type == AccountType.CREDIT_CARD) -it else it) }.orEmpty())
     }
@@ -218,6 +227,7 @@ fun AccountEditor(initial: Account?, defaultType: AccountType, onDismiss: () -> 
                 openingBalance = if (isCard) -opening else opening,
                 creditLimit = if (isCard) parseMoney(limit) else null,
                 archived = archived,
+                excludeFromTotal = !isCard && excludeFromTotal,
             )
             when {
                 !isCard || !hasSavedPassword && password.isEmpty() -> passwords.clear(item.uid)
@@ -278,8 +288,14 @@ fun AccountEditor(initial: Account?, defaultType: AccountType, onDismiss: () -> 
                 }
             }
         }
+        if (!isCard) {
+            Row(Modifier.clickable { excludeFromTotal = !excludeFromTotal }, verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = excludeFromTotal, onCheckedChange = { excludeFromTotal = it })
+                Text("Don't count in my total (e.g. someone else's money)")
+            }
+        }
         if (initial != null) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.clickable { archived = !archived }, verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = archived, onCheckedChange = { archived = it })
                 Text("No longer used (hide from lists)")
             }

@@ -26,6 +26,8 @@ data class Account(
     val last4: String = "",
     val creditLimit: Long? = null,
     val archived: Boolean = false,
+    /** Money looked after here that isn't yours to count, e.g. someone else's; kept out of your cash total. */
+    val excludeFromTotal: Boolean = false,
     val uid: String = newUid(),
     val updatedAt: Long = System.currentTimeMillis(),
 )
@@ -96,10 +98,10 @@ val incomeCategories = listOf("Salary", "Business", "Interest earned", "Gift", "
 
 private val categoryKeywords = listOf(
     "Food & groceries" to listOf("KEELLS", "CARGILLS", "FOOD", "SUPERMARKET", "ARPICO", "LAUGFS SUPER", "SPAR", "RESTAURANT", "CAFE", "BAKERY", "PIZZA", "KFC", "MCDONALD", "BURGER"),
-    "Fuel" to listOf("FUEL", "PETROL", "CEYPETCO", "FILLING STATION", "LANKA IOC", "LIOC", "SHED"),
+    "Fuel" to listOf("FUEL", "PETROL", "CEYPETCO", "FILLIN", "LANKA IOC", "LIOC", "SHED"),
     "Transport" to listOf("UBER", "PICKME", "TAXI", "BUS ", "RAILWAY", "PARKING", "HIGHWAY"),
-    "Bills & utilities" to listOf("DIALOG", "MOBITEL", "SLT", "HUTCH", "AIRTEL", "CEB", "LECO", "WATER BOARD", "NWSDB", "ELECTRICITY", "TELECOM", "INTERNET", "NETFLIX", "SPOTIFY", "GOOGLE", "APPLE.COM"),
-    "Shopping" to listOf("DARAZ", "ODEL", "AMAZON", "ALIEXPRESS", "ABANS", "SINGER", "SOFTLOGIC", "FASHION", "NOLIMIT", "HOUSE OF FASHION", "COOL PLANET", "EBAY"),
+    "Bills & utilities" to listOf("DIALOG", "MOBITEL", "SLT", "HUTCH", "AIRTEL", "CEB", "LECO", "WATER BOARD", "NWSDB", "ELECTRICITY", "LANKA ELEC", "NATIONAL W", "TELECOM", "INTERNET", "NETFLIX", "SPOTIFY", "GOOGLE", "APPLE.COM"),
+    "Shopping" to listOf("DARAZ", "ODEL", "AMAZON", "ALIEXPRESS", "ABANS", "SINGER", "SOFTLOGIC", "BUYABANS", "FASHION", "NOLIMIT", "HOUSE OF FASHION", "COOL PLANET", "EBAY"),
     "Health" to listOf("PHARMACY", "HOSPITAL", "ASIRI", "NAWALOKA", "HEMAS", "DURDANS", "CLINIC", "DENTAL", "MEDICAL", "LANKA HOSPITALS"),
     "Education" to listOf("SCHOOL", "COLLEGE", "UNIVERSITY", "TUITION", "COURSERA", "UDEMY"),
     "Travel" to listOf("AIRLINE", "AIRWAYS", "HOTEL", "BOOKING.COM", "AGODA", "AIRBNB", "RESORT"),

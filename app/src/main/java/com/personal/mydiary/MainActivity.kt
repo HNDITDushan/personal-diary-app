@@ -9,11 +9,15 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.Event
-import androidx.compose.material.icons.outlined.MoreHoriz
+import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.WbSunny
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -32,6 +36,7 @@ import androidx.navigation.compose.rememberNavController
 import com.personal.mydiary.ui.screens.BackupScreen
 import com.personal.mydiary.ui.screens.DiaryScreen
 import com.personal.mydiary.ui.screens.EventsScreen
+import com.personal.mydiary.ui.screens.LoanCalculatorScreen
 import com.personal.mydiary.ui.screens.MoneyScreen
 import com.personal.mydiary.ui.screens.MoreScreen
 import com.personal.mydiary.ui.screens.PlacesScreen
@@ -65,21 +70,21 @@ object Routes {
     const val REPORT = "report"
     const val BACKUP = "backup"
     const val SHEET = "sheet"
+    const val LOAN_CALCULATOR = "loan_calculator"
 }
 
-private data class Tab(val route: String, val label: String, val icon: ImageVector)
+private data class Tab(val route: String, val label: String, val icon: ImageVector, val selectedIcon: ImageVector)
 
 private val tabs = listOf(
-    Tab(Routes.TODAY, "Today", Icons.Outlined.WbSunny),
-    Tab(Routes.TASKS, "Tasks", Icons.Outlined.CheckCircle),
-    Tab(Routes.DIARY, "Diary", Icons.AutoMirrored.Outlined.MenuBook),
-    Tab(Routes.MONEY, "Money", Icons.Outlined.AccountBalanceWallet),
-    Tab(Routes.EVENTS, "Events", Icons.Outlined.Event),
-    Tab(Routes.MORE, "More", Icons.Outlined.MoreHoriz),
+    Tab(Routes.TODAY, "Today", Icons.Outlined.WbSunny, Icons.Filled.WbSunny),
+    Tab(Routes.TASKS, "Tasks", Icons.Outlined.CheckCircle, Icons.Filled.CheckCircle),
+    Tab(Routes.DIARY, "Diary", Icons.AutoMirrored.Outlined.MenuBook, Icons.AutoMirrored.Filled.MenuBook),
+    Tab(Routes.MONEY, "Money", Icons.Outlined.AccountBalanceWallet, Icons.Filled.AccountBalanceWallet),
+    Tab(Routes.MORE, "More", Icons.Outlined.GridView, Icons.Filled.GridView),
 )
 
 /** Sub-screens reached from "More" keep that tab highlighted. */
-private val moreChildren = setOf(Routes.PLACES, Routes.REPORT, Routes.BACKUP, Routes.SHEET)
+private val moreChildren = setOf(Routes.EVENTS, Routes.PLACES, Routes.REPORT, Routes.BACKUP, Routes.SHEET, Routes.LOAN_CALCULATOR)
 
 @Composable
 fun AppRoot() {
@@ -101,7 +106,7 @@ fun AppRoot() {
                                 restoreState = true
                             }
                         },
-                        icon = { Icon(tab.icon, null) },
+                        icon = { Icon(if (current == tab.route) tab.selectedIcon else tab.icon, null) },
                         label = { Text(tab.label) },
                     )
                 }
@@ -112,13 +117,14 @@ fun AppRoot() {
             composable(Routes.TODAY) { TodayScreen(onOpen = go) }
             composable(Routes.TASKS) { TasksScreen() }
             composable(Routes.DIARY) { DiaryScreen() }
-            composable(Routes.MONEY) { MoneyScreen() }
-            composable(Routes.EVENTS) { EventsScreen() }
+            composable(Routes.MONEY) { MoneyScreen(onOpen = go) }
+            composable(Routes.EVENTS) { EventsScreen(onBack = nav::popBackStack) }
             composable(Routes.MORE) { MoreScreen(onOpen = go) }
             composable(Routes.PLACES) { PlacesScreen(onBack = nav::popBackStack) }
             composable(Routes.REPORT) { ReportScreen(onBack = nav::popBackStack) }
             composable(Routes.BACKUP) { BackupScreen(onBack = nav::popBackStack) }
             composable(Routes.SHEET) { SheetScreen(onBack = nav::popBackStack) }
+            composable(Routes.LOAN_CALCULATOR) { LoanCalculatorScreen(onBack = nav::popBackStack) }
         }
     }
 }
