@@ -11,9 +11,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -33,6 +36,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -52,8 +56,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
 import com.personal.mydiary.data.save
 import com.personal.mydiary.data.DayMood
 import com.personal.mydiary.data.Mood
@@ -107,6 +113,9 @@ fun EditorDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        // Shrink above the keyboard so Save stays reachable while typing.
+        modifier = Modifier.imePadding(),
+        properties = DialogProperties(decorFitsSystemWindows = false),
         title = { Text(title) },
         text = {
             Column(
@@ -137,6 +146,24 @@ fun TextInput(value: String, onChange: (String) -> Unit, label: String, singleLi
         minLines = if (singleLine) 1 else 3,
         modifier = Modifier.fillMaxWidth(),
     )
+}
+
+/** Tappable chips of earlier entries that match what's been typed so far. */
+@Composable
+fun SuggestionRow(query: String, options: List<String>, onPick: (String) -> Unit) {
+    val q = query.trim()
+    val matches = remember(q, options) {
+        options.filter { !it.equals(q, ignoreCase = true) && (q.isEmpty() || it.contains(q, ignoreCase = true)) }.take(10)
+    }
+    if (matches.isEmpty()) return
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        items(matches) { option ->
+            SuggestionChip(
+                onClick = { onPick(option) },
+                label = { Text(option, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            )
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

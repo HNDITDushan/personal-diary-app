@@ -21,8 +21,12 @@ data class BackupData(
     val occasions: List<Occasion> = emptyList(),
     val places: List<Place> = emptyList(),
     val moods: List<DayMood> = emptyList(),
+    val accounts: List<Account> = emptyList(),
+    val moneyTxns: List<MoneyTxn> = emptyList(),
+    val statements: List<CardStatement> = emptyList(),
 ) {
-    val itemCount get() = tasks.size + appointments.size + entries.size + occasions.size + places.size + moods.size
+    val itemCount get() = tasks.size + appointments.size + entries.size + occasions.size + places.size + moods.size +
+        accounts.size + moneyTxns.size + statements.size
 }
 
 /**
@@ -46,6 +50,9 @@ object Backup {
             occasions = db.occasions().getAll(),
             places = db.places().getAll(),
             moods = db.moods().getAll(),
+            accounts = db.accounts().getAll(),
+            moneyTxns = db.moneyTxns().getAll(),
+            statements = db.statements().getAll(),
         )
         val out = context.contentResolver.openOutputStream(uri, "wt") ?: error("Could not open the file")
         out.use { it.write(json.encodeToString(BackupData.serializer(), data).toByteArray()) }
@@ -67,8 +74,12 @@ object Backup {
             db.occasions().clear(); db.occasions().insertAll(data.occasions)
             db.places().clear(); db.places().insertAll(data.places)
             db.moods().clear(); db.moods().insertAll(data.moods)
+            db.accounts().clear(); db.accounts().insertAll(data.accounts)
+            db.moneyTxns().clear(); db.moneyTxns().insertAll(data.moneyTxns)
+            db.statements().clear(); db.statements().insertAll(data.statements)
         }
         db.appointments().upcoming(System.currentTimeMillis()).forEach { AppointmentReminders.schedule(context, it) }
+        ensureCashAccount(db)
         // Restored records are older than the last sheet sync; without a reset they would look deleted from the sheet.
         SheetSettings(context).resetSyncState()
         data.itemCount

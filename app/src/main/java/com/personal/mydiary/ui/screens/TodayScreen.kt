@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.DirectionsRun
@@ -44,6 +45,7 @@ import com.personal.mydiary.data.DayMood
 import com.personal.mydiary.data.DiaryEntry
 import com.personal.mydiary.data.EntryType
 import com.personal.mydiary.data.TaskItem
+import com.personal.mydiary.data.TxnKind
 import com.personal.mydiary.diaryApp
 import com.personal.mydiary.ui.EntryEditor
 import com.personal.mydiary.ui.InfoCard
@@ -72,6 +74,7 @@ private sealed interface QuickAdd {
     data object Task : QuickAdd
     data class Entry(val type: EntryType) : QuickAdd
     data object Place : QuickAdd
+    data object Expense : QuickAdd
 }
 
 @Composable
@@ -145,6 +148,7 @@ fun TodayScreen(onOpen: (String) -> Unit) {
                 item { QuickChip("Good deed", Icons.Outlined.Favorite) { quickAdd = QuickAdd.Entry(EntryType.GOOD_DEED) } }
                 item { QuickChip("Memory", Icons.Outlined.AutoAwesome) { quickAdd = QuickAdd.Entry(EntryType.MEMORY) } }
                 item { QuickChip("Place", Icons.Outlined.Place) { quickAdd = QuickAdd.Place } }
+                item { QuickChip("Income / expense", Icons.Outlined.AccountBalanceWallet) { quickAdd = QuickAdd.Expense } }
             }
         }
 
@@ -225,6 +229,7 @@ fun TodayScreen(onOpen: (String) -> Unit) {
         QuickAdd.Task -> TaskEditor(null) { quickAdd = null }
         is QuickAdd.Entry -> EntryEditor(q.type, null, { quickAdd = null })
         QuickAdd.Place -> PlaceEditor(null) { quickAdd = null }
+        QuickAdd.Expense -> TxnEditor(null, TxnKind.EXPENSE) { quickAdd = null }
         null -> {}
     }
     editingTask?.let { TaskEditor(it) { editingTask = null } }

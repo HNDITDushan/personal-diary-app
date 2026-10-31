@@ -22,6 +22,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -77,7 +78,7 @@ val Priority.label: String
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun <T> ChoiceChips(options: List<T>, selected: T, label: (T) -> String, onSelect: (T) -> Unit) {
+fun <T> ChoiceChips(options: List<T>, selected: T, label: (T) -> String, onSelect: (T) -> Unit) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         options.forEach { option ->
             FilterChip(selected = option == selected, onClick = { onSelect(option) }, label = { Text(label(option)) })
@@ -107,6 +108,8 @@ fun TaskEditor(initial: TaskItem?, onDismiss: () -> Unit) {
         onDelete = initial?.let { { app.launch { tasks().delete(it) }; onDismiss() } },
     ) {
         TextInput(title, { title = it }, "What needs doing?")
+        val earlier by remember { app.db.tasks().observeTitles() }.collectAsState(initial = emptyList())
+        SuggestionRow(title, earlier) { title = it }
         TextInput(notes, { notes = it }, "Notes", singleLine = false)
         DateField("No due date", due, { due = it }, clearable = true)
         Text("Priority", style = MaterialTheme.typography.labelLarge)
@@ -144,8 +147,12 @@ fun EntryEditor(type: EntryType, initial: DiaryEntry?, onDismiss: () -> Unit, de
         onDelete = initial?.let { { app.launch { entries().delete(it) }; onDismiss() } },
     ) {
         TextInput(title, { title = it }, titleHint)
+        val earlier by remember(type) { app.db.entries().observeTitles(type.name) }.collectAsState(initial = emptyList())
+        SuggestionRow(title, earlier) { title = it }
         TextInput(details, { details = it }, "Details", singleLine = false)
         TextInput(people, { people = it }, peopleHint)
+        val earlierPeople by remember { app.db.entries().observePeople() }.collectAsState(initial = emptyList())
+        SuggestionRow(people, earlierPeople) { people = it }
         DateField("Date", date, { if (it != null) date = it })
         TimeField("No time", time, { time = it }, clearable = true)
     }
@@ -213,6 +220,14 @@ fun PlaceEditor(initial: Place?, onDismiss: () -> Unit) {
             Text("📍 %.5f, %.5f".format(lat, lng), style = MaterialTheme.typography.bodySmall)
         }
         TextInput(name, { name = it }, "Place name")
+        val earlier by remember { app.db.places().observeDistinct() }.collectAsState(initial = emptyList())
+        SuggestionRow(name, earlier.map { it.name }) { picked ->
+            name = picked
+            earlier.firstOrNull { it.name == picked }?.let { place ->
+                if (address.isBlank()) address = place.address
+                if (coords == null) coords = place.latitude?.let { lat -> place.longitude?.let { lat to it } }
+            }
+        }
         TextInput(address, { address = it }, "Address")
         TextInput(notes, { notes = it }, "Notes", singleLine = false)
         DateField("Date visited", date, { if (it != null) date = it })

@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import com.personal.mydiary.data.AppDatabase
+import com.personal.mydiary.data.ensureCashAccount
 import com.personal.mydiary.work.DailyWorker
 import com.personal.mydiary.work.Notifications
 import com.personal.mydiary.work.SheetSyncWorker
@@ -28,6 +29,7 @@ class DiaryApp : Application() {
     override fun onCreate() {
         super.onCreate()
         Notifications.createChannel(this)
+        scope.launch { ensureCashAccount(db) }
         DailyWorker.schedule(this)
         SheetSyncWorker.schedule(this)
         SheetSyncWorker.syncSoon(this, delaySeconds = 5)

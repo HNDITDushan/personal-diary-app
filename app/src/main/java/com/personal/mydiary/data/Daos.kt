@@ -12,6 +12,10 @@ interface TaskDao {
     @Query("SELECT * FROM tasks ORDER BY done ASC, CASE WHEN dueDate IS NULL THEN 1 ELSE 0 END, dueDate ASC, createdAt DESC")
     fun observeAll(): Flow<List<TaskItem>>
 
+    /** Earlier titles, most used first, for suggestions. */
+    @Query("SELECT title FROM tasks GROUP BY title COLLATE NOCASE ORDER BY COUNT(*) DESC, MAX(createdAt) DESC LIMIT 100")
+    fun observeTitles(): Flow<List<String>>
+
     @Query("SELECT * FROM tasks WHERE done = 0 AND dueDate IS NOT NULL AND dueDate <= :day ORDER BY dueDate")
     fun observeDueBy(day: Long): Flow<List<TaskItem>>
 
@@ -64,6 +68,13 @@ interface EntryDao {
     @Query("SELECT * FROM entries WHERE type = :type ORDER BY date DESC, time DESC, id DESC")
     fun observeByType(type: String): Flow<List<DiaryEntry>>
 
+    /** Earlier titles of one entry type, most used first, for suggestions. */
+    @Query("SELECT title FROM entries WHERE type = :type GROUP BY title COLLATE NOCASE ORDER BY COUNT(*) DESC, MAX(date) DESC LIMIT 100")
+    fun observeTitles(type: String): Flow<List<String>>
+
+    @Query("SELECT people FROM entries WHERE people != '' GROUP BY people COLLATE NOCASE ORDER BY COUNT(*) DESC, MAX(date) DESC LIMIT 50")
+    fun observePeople(): Flow<List<String>>
+
     @Query("SELECT * FROM entries WHERE date = :date ORDER BY time ASC, id ASC")
     fun observeOnDate(date: Long): Flow<List<DiaryEntry>>
 
@@ -96,6 +107,10 @@ interface OccasionDao {
 interface PlaceDao {
     @Query("SELECT * FROM places ORDER BY date DESC, id DESC")
     fun observeAll(): Flow<List<Place>>
+
+    /** The latest visit to each differently named place, for suggestions. */
+    @Query("SELECT * FROM places WHERE id IN (SELECT MAX(id) FROM places GROUP BY name COLLATE NOCASE) ORDER BY date DESC LIMIT 100")
+    fun observeDistinct(): Flow<List<Place>>
 
     @Query("SELECT * FROM places WHERE date BETWEEN :from AND :to ORDER BY date ASC")
     fun observeBetween(from: Long, to: Long): Flow<List<Place>>

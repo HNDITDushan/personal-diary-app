@@ -39,12 +39,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.personal.mydiary.data.Account
 import com.personal.mydiary.data.Appointment
 import com.personal.mydiary.data.DiaryEntry
 import com.personal.mydiary.data.EntryType
+import com.personal.mydiary.data.MoneyTxn
 import com.personal.mydiary.data.Mood
 import com.personal.mydiary.data.Place
 import com.personal.mydiary.data.TaskItem
+import com.personal.mydiary.data.TxnKind
 import com.personal.mydiary.diaryApp
 import com.personal.mydiary.ui.AppointmentEditor
 import com.personal.mydiary.ui.EmptyState
@@ -69,7 +72,7 @@ import java.time.LocalTime
 private enum class TimelineFilter(val label: String, val itemLabel: String) {
     ALL("All", ""), ACTIVITY("Activities", "Activity"), MEMORY("Memories", "Memory"),
     GOOD_DEED("Good deeds", "Good deed"), PLACE("Places", "Place visited"),
-    TASK("Tasks done", "Task completed"), APPOINTMENT("Appointments", "Appointment"),
+    TASK("Tasks done", "Task completed"), APPOINTMENT("Appointments", "Appointment"), MONEY("Money", "Money"),
 }
 
 /** One row on the timeline; [source] is the record opened for editing on tap. */
@@ -83,6 +86,7 @@ private data class TimelineItem(
     val title: String,
     val subtitle: String,
     val source: Any,
+    val typeLabel: String = filter.itemLabel,
 )
 
 private val activityColor = Color(0xFF5C6BC0)
@@ -91,6 +95,7 @@ private val deedColor = Color(0xFFE0457B)
 private val placeColor = Color(0xFF26A69A)
 private val taskColor = Color(0xFF43A047)
 private val appointmentColor = Color(0xFFFFA726)
+private val moneyColor = Color(0xFF00897B)
 
 private fun DiaryEntry.toItem(): TimelineItem {
     val (filter, color) = when (type) {
@@ -123,6 +128,22 @@ private fun Appointment.toItem(): TimelineItem {
     )
 }
 
+private fun MoneyTxn.toItem(accounts: Map<Long, Account>): TimelineItem {
+    val account = accounts[accountId]?.name.orEmpty()
+    val counter = counterAccountId?.let { accounts[it]?.name }
+    val where = when (kind) {
+        TxnKind.TRANSFER -> account + (counter?.let { " → $it" } ?: "")
+        TxnKind.CARD_PAYMENT -> (counter?.let { "$it → " } ?: "") + account
+        else -> account
+    }
+    return TimelineItem(
+        "m$id", TimelineFilter.MONEY, date.epochDayToDate(), time.storedToTime(), kind.emoji, moneyColor,
+        description.ifBlank { category.ifBlank { kind.label } },
+        listOf(signedAmount(), where, category).filter { it.isNotBlank() }.joinToString(" · "),
+        this, kind.label,
+    )
+}
+
 @Composable
 fun TimelineView() {
     val db = diaryApp().db
@@ -131,17 +152,21 @@ fun TimelineView() {
     val tasks by remember { db.tasks().observeAll() }.collectAsState(initial = emptyList())
     val appointments by remember { db.appointments().observeAll() }.collectAsState(initial = emptyList())
     val moods by remember { db.moods().observeAll() }.collectAsState(initial = emptyList())
+    val money by remember { db.moneyTxns().observeAll() }.collectAsState(initial = emptyList())
+    val accounts by remember { db.accounts().observeAll() }.collectAsState(initial = emptyList())
 
     var filter by rememberSaveable { mutableStateOf(TimelineFilter.ALL) }
     var query by rememberSaveable { mutableStateOf("") }
     var editing by remember { mutableStateOf<Any?>(null) }
     var rateDay by remember { mutableStateOf<LocalDate?>(null) }
 
-    val allItems = remember(entries, places, tasks, appointments) {
+    val allItems = remember(entries, places, tasks, appointments, money, accounts) {
+        val accountsById = accounts.associateBy { it.id }
         entries.map { it.toItem() } +
             places.map { it.toItem() } +
             tasks.filter { it.done && it.completedAt != null }.map { it.toItem() } +
-            appointments.map { it.toItem() }
+            appointments.map { it.toItem() } +
+            money.map { it.toItem(accountsById) }
     }
     val moodByDay = remember(moods) { moods.associate { it.date.epochDayToDate() to it.mood } }
 
@@ -180,7 +205,7 @@ fun TimelineView() {
         if (days.isEmpty()) {
             EmptyState(
                 Icons.Outlined.Timeline,
-                if (query.isBlank() && filter == TimelineFilter.ALL) "Your timeline fills up as you record activities, memories, good deeds, places and tasks."
+                if (query.isBlank() && filter == TimelineFilter.ALL) "Your timeline fills up as you record activities, memories, good deeds, places, tasks and money."
                 else "Nothing matches.",
             )
         } else {
@@ -203,6 +228,7 @@ fun TimelineView() {
         is Place -> PlaceEditor(e) { editing = null }
         is TaskItem -> TaskEditor(e) { editing = null }
         is Appointment -> AppointmentEditor(e) { editing = null }
+        is MoneyTxn -> TxnEditor(e, e.kind) { editing = null }
     }
     rateDay?.let { MoodDialog(it) { rateDay = null } }
 }
@@ -253,7 +279,7 @@ private fun TimelineRow(item: TimelineItem, isLast: Boolean, onClick: () -> Unit
         }
         InfoCard(Modifier.weight(1f).padding(start = 4.dp, bottom = 8.dp).clickable(onClick = onClick)) {
             Text("${item.emoji} ${item.title}", style = MaterialTheme.typography.titleSmall)
-            Text(item.filter.itemLabel, style = MaterialTheme.typography.labelSmall, color = item.color)
+            Text(item.typeLabel, style = MaterialTheme.typography.labelSmall, color = item.color)
             if (item.subtitle.isNotBlank()) {
                 Text(item.subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
