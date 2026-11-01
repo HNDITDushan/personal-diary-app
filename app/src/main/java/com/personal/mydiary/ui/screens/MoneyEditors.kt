@@ -31,6 +31,7 @@ import com.personal.mydiary.data.DiaryEntry
 import com.personal.mydiary.data.MoneyTxn
 import com.personal.mydiary.data.StatementPasswords
 import com.personal.mydiary.data.TxnKind
+import com.personal.mydiary.data.defaultAccountAmong
 import com.personal.mydiary.data.defaultCategories
 import com.personal.mydiary.data.goodDeedFor
 import com.personal.mydiary.data.incomeCategories
@@ -147,7 +148,7 @@ fun TxnEditor(initial: MoneyTxn?, defaultKind: TxnKind, onDismiss: () -> Unit) {
     // A card payment goes onto a card; everything else starts from an account you pay out of.
     val cards = accounts.filter { it.type == AccountType.CREDIT_CARD }
     val mainChoices = if (kind == TxnKind.CARD_PAYMENT) cards else if (kind == TxnKind.TRANSFER) accounts.filter { it.type != AccountType.CREDIT_CARD } else accounts
-    val selectedAccount = mainChoices.firstOrNull { it.id == accountId } ?: mainChoices.firstOrNull()
+    val selectedAccount = mainChoices.firstOrNull { it.id == accountId } ?: defaultAccountAmong(mainChoices)
     val counterChoices = when (kind) {
         TxnKind.TRANSFER, TxnKind.CARD_PAYMENT -> accounts.filter { it.type != AccountType.CREDIT_CARD && it.id != selectedAccount?.id }
         else -> emptyList()
@@ -261,6 +262,7 @@ fun AccountEditor(initial: Account?, defaultType: AccountType, onDismiss: () -> 
     var last4 by rememberSaveable { mutableStateOf(initial?.last4.orEmpty()) }
     var archived by remember { mutableStateOf(initial?.archived ?: false) }
     var excludeFromTotal by remember { mutableStateOf(initial?.excludeFromTotal ?: false) }
+    var isDefault by remember { mutableStateOf(initial?.isDefault ?: false) }
     var balance by rememberSaveable {
         mutableStateOf(initial?.openingBalance?.takeIf { it != 0L }?.let { moneyInput(if (initial.type == AccountType.CREDIT_CARD) -it else it) }.orEmpty())
     }
@@ -285,12 +287,18 @@ fun AccountEditor(initial: Account?, defaultType: AccountType, onDismiss: () -> 
                 creditLimit = if (isCard) parseMoney(limit) else null,
                 archived = archived,
                 excludeFromTotal = !isCard && excludeFromTotal,
+                isDefault = !isCard && !archived && isDefault,
             )
             when {
                 !isCard || !hasSavedPassword && password.isEmpty() -> passwords.clear(item.uid)
                 password.isNotEmpty() -> passwords.set(item.uid, password)
             }
-            app.launch { accounts().save(item) }
+            app.launch {
+                withTransaction {
+                    if (item.isDefault) accounts().clearDefault()
+                    accounts().save(item)
+                }
+            }
             onDismiss()
         },
         onDelete = initial?.let {
@@ -346,6 +354,10 @@ fun AccountEditor(initial: Account?, defaultType: AccountType, onDismiss: () -> 
             }
         }
         if (!isCard) {
+            Row(Modifier.clickable { isDefault = !isDefault }, verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = isDefault, onCheckedChange = { isDefault = it })
+                Text("⭐ Use as my default account for new entries")
+            }
             Row(Modifier.clickable { excludeFromTotal = !excludeFromTotal }, verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = excludeFromTotal, onCheckedChange = { excludeFromTotal = it })
                 Text("Don't count in my total (e.g. someone else's money)")

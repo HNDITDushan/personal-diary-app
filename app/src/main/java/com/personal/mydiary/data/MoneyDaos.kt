@@ -12,6 +12,9 @@ interface AccountDao {
     @Query("SELECT * FROM accounts ORDER BY archived ASC, type ASC, name ASC")
     fun observeAll(): Flow<List<Account>>
 
+    @Query("UPDATE accounts SET isDefault = 0")
+    suspend fun clearDefault()
+
     @Upsert suspend fun upsert(item: Account): Long
     @Delete suspend fun delete(item: Account)
     @Query("SELECT * FROM accounts") suspend fun getAll(): List<Account>

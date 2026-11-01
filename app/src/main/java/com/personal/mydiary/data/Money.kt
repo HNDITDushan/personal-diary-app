@@ -29,6 +29,8 @@ data class Account(
     val archived: Boolean = false,
     /** Money looked after here that isn't yours to count, e.g. someone else's; kept out of your cash total. */
     val excludeFromTotal: Boolean = false,
+    /** Starts selected on new entries; at most one account has this. */
+    val isDefault: Boolean = false,
     val uid: String = newUid(),
     val updatedAt: Long = System.currentTimeMillis(),
 )
@@ -72,6 +74,10 @@ data class CardStatement(
     val minimumDue: Long? = null,
     val importedAt: Long = System.currentTimeMillis(),
 )
+
+/** The account new entries start on: the chosen default, otherwise the first cash account, otherwise the first. */
+fun defaultAccountAmong(accounts: List<Account>): Account? =
+    accounts.firstOrNull { it.isDefault } ?: accounts.firstOrNull { it.type == AccountType.CASH } ?: accounts.firstOrNull()
 
 /** The change this entry makes to the balance of [account]. */
 fun MoneyTxn.effectOn(account: Long): Long {

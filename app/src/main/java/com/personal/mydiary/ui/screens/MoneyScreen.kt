@@ -31,6 +31,7 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -55,6 +56,7 @@ import com.personal.mydiary.Routes
 import com.personal.mydiary.data.Account
 import com.personal.mydiary.data.AccountType
 import com.personal.mydiary.data.CardStatement
+import com.personal.mydiary.data.DebtSummary
 import com.personal.mydiary.data.Loan
 import com.personal.mydiary.data.MoneyTxn
 import com.personal.mydiary.data.TxnKind
@@ -186,21 +188,16 @@ private fun DashboardTab(month: YearMonth, onMonth: (YearMonth) -> Unit, account
     val monthTxns = remember(txns, month) { txns.filter { it.month() == month } }
     val totals = remember(monthTxns) { Totals(monthTxns) }
     val cashAndBank = accounts.filter { it.countsInCashTotal }.sumOf { it.balance(txns) }
-    val owed = -accounts.filter { it.type == AccountType.CREDIT_CARD }.sumOf { it.balance(txns) }
-    val loansOwed = loans.filter { !it.closed }.sumOf { it.balance(txns) }
+    val debts = remember(accounts, loans, txns) { DebtSummary(accounts, loans, txns) }
 
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                StatTile("Cash & bank now", formatMoney(cashAndBank), Modifier.weight(1f))
-                StatTile("Credit cards owed", formatMoney(owed), Modifier.weight(1f))
-            }
-        }
-        if (loans.isNotEmpty()) item { StatTile("Loans owed", formatMoney(loansOwed)) }
+        item { StatTile("Cash & bank now", formatMoney(cashAndBank)) }
+        if (debts.cards.isNotEmpty() || debts.openLoans.isNotEmpty()) item { ToPayCard(debts) }
+        if (debts.cards.any { !it.account.archived }) item { AvailableCreditCard(debts) }
         item { MonthSwitcher(month, onMonth) }
         item {
             HeroCard {
@@ -247,6 +244,72 @@ private fun DashboardTab(month: YearMonth, onMonth: (YearMonth) -> Unit, account
                 )
             }
         }
+    }
+}
+
+/** Everything still owed, card by card and loan by loan. */
+@Composable
+private fun ToPayCard(debts: DebtSummary) {
+    InfoCard {
+        Text("Total to pay", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(formatMoney(debts.totalToPay), style = MaterialTheme.typography.headlineSmall)
+        if (debts.cards.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            DebtGroup("Credit cards", debts.cardsToPay, debts.cards.map { it.account.displayName() to it.owed })
+        }
+        if (debts.openLoans.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            DebtGroup("Loans", debts.loansToPay, debts.openLoans.map { (loan, owed) -> loan.name to owed })
+        }
+    }
+}
+
+@Composable
+private fun DebtGroup(title: String, total: Long, lines: List<Pair<String, Long>>) {
+    Row(Modifier.fillMaxWidth()) {
+        Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+        Text(formatMoney(total), style = MaterialTheme.typography.titleSmall)
+    }
+    lines.forEach { (name, amount) ->
+        Row(Modifier.fillMaxWidth().padding(start = 12.dp, top = 2.dp)) {
+            Text(name, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(formatMoney(amount), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+/** What's left to spend on each card, with a bar showing how much of its limit is in use. */
+@Composable
+private fun AvailableCreditCard(debts: DebtSummary) {
+    InfoCard {
+        Text("Available credit", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(formatMoney(debts.availableCredit), style = MaterialTheme.typography.headlineSmall)
+        debts.cards.filter { !it.account.archived }.forEach { card ->
+            Spacer(Modifier.height(10.dp))
+            Row(Modifier.fillMaxWidth()) {
+                Text(card.account.displayName(), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+                Text(card.available?.let(::formatMoney) ?: "No limit entered", style = MaterialTheme.typography.titleSmall)
+            }
+            card.account.creditLimit?.takeIf { it > 0 }?.let { limit ->
+                LinearProgressIndicator(
+                    progress = { (card.owed.toFloat() / limit).coerceIn(0f, 1f) },
+                    color = if (card.overLimit > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                )
+                Text(
+                    if (card.overLimit > 0) "Over the ${formatMoney(limit)} limit by ${formatMoney(card.overLimit)}"
+                    else "Used ${formatMoney(card.owed.coerceAtLeast(0))} of ${formatMoney(limit)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (card.overLimit > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Text(
+            "Worked out from your limits and entries, up to your latest statement. Your bank's figure can be lower, for example with installment plans.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 10.dp),
+        )
     }
 }
 
@@ -481,7 +544,7 @@ private fun AccountsTab(accounts: List<Account>, txns: List<MoneyTxn>) {
         items(cashAndBank, key = { it.id }) { a ->
             CompactRow(
                 a.displayName(),
-                a.type.label + if (a.excludeFromTotal) " · Not in total" else "",
+                listOfNotNull(a.type.label, "⭐ Default".takeIf { a.isDefault }, "Not in total".takeIf { a.excludeFromTotal }).joinToString(" · "),
                 formatMoney(a.balance(txns)),
                 onClick = { editing = a },
                 emoji = a.type.emoji,

@@ -52,7 +52,7 @@ After every sync the script also rebuilds two read-only tabs at the front of the
 - **Dashboard**: this month's happiness score and verdict, counts (days rated, good deeds, activities, places, tasks done), a colour-coded mood calendar, birthdays and special days in the next 30 days, upcoming appointments, this month's good deeds, and a 12-month trend table with charts (happiness, days by mood, good deeds).
 - **Timeline**: everything recorded, newest first, with type, details and the day's mood; it has a filter on the header row.
 
-Money syncs both ways in three tabs: **Money** (add a row with at least an amount; the account defaults to cash and the date to today), **Accounts** and **Loans**. Credit cards are named like `Town Bank (Card)` in the Money tab, so a bank account and card can share a name. Accounts and loans with entries can't be deleted from the sheet: their rows come back on the next sync. Missing or empty tabs never delete anything from the app.
+Money syncs both ways in three tabs: **Money** (add a row with at least an amount; the account defaults to your default account and the date to today), **Accounts** and **Loans**. Credit cards are named like `Town Bank (Card)` in the Money tab, so a bank account and card can share a name. Accounts and loans with entries can't be deleted from the sheet: their rows come back on the next sync. Missing or empty tabs never delete anything from the app.
 
 The sheet's **My Diary → Refresh Dashboard & Timeline** menu rebuilds them after hand edits. If you set up the sheet with an older script, paste the new one and use **Deploy → Manage deployments → Edit → New version**; the web app URL stays the same.
 

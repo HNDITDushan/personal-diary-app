@@ -73,7 +73,7 @@ internal object SheetMoney {
         val date = if (dateText.isEmpty()) today else SheetSync.parseDate(dateText) ?: return null
 
         val accountText = cell("Account")
-        val account = (if (accountText.isEmpty()) accounts.firstOrNull { it.type == AccountType.CASH && !it.archived }
+        val account = (if (accountText.isEmpty()) defaultAccountAmong(accounts.filter { !it.archived && it.type != AccountType.CREDIT_CARD })
         else findAccount(accountText, accounts)) ?: return null
 
         val otherText = cell("Other account")

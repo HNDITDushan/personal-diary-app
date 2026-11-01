@@ -34,6 +34,34 @@ class SheetMoneyTest {
     }
 
     @Test
+    fun aTypedRowUsesTheDefaultAccount() {
+        val withDefault = listOf(cash, bank.copy(isDefault = true), card)
+        val t = SheetMoney.parseEntry(mapOf("Amount" to "5"), null, "k", 5, today, withDefault, emptyList())!!
+        assertEquals(bank.id, t.accountId)
+    }
+
+    @Test
+    fun aHiddenDefaultIsNotUsed() {
+        val withDefault = listOf(cash, bank.copy(isDefault = true, archived = true), card)
+        val t = SheetMoney.parseEntry(mapOf("Amount" to "5"), null, "k", 5, today, withDefault, emptyList())!!
+        assertEquals(cash.id, t.accountId)
+    }
+
+    @Test
+    fun theDefaultAccountChoiceFallsBackSensibly() {
+        assertEquals(cash.id, defaultAccountAmong(listOf(bank, cash))?.id)
+        assertEquals(bank.id, defaultAccountAmong(listOf(bank))?.id)
+        assertEquals(bank.id, defaultAccountAmong(listOf(cash, bank.copy(isDefault = true)))?.id)
+        assertEquals(null, defaultAccountAmong(emptyList()))
+    }
+
+    @Test
+    fun syncingAnAccountKeepsItsDefaultMark() {
+        val a = cash.copy(isDefault = true)
+        assertEquals(true, SheetMoney.parseAccount(SheetMoney.accountToRow(a), a, a.uid, 5)!!.isDefault)
+    }
+
+    @Test
     fun rowsThatCannotBeUnderstoodAreRejected() {
         assertNull(parse(mapOf("Amount" to "abc")))
         assertNull(parse(mapOf("Amount" to "-5")))

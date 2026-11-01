@@ -41,6 +41,7 @@ import com.personal.mydiary.data.Loan
 import com.personal.mydiary.data.MoneyTxn
 import com.personal.mydiary.data.TxnKind
 import com.personal.mydiary.data.balance
+import com.personal.mydiary.data.defaultAccountAmong
 import com.personal.mydiary.data.interestPaid
 import com.personal.mydiary.data.monthlyInterest
 import com.personal.mydiary.data.nextDue
@@ -344,7 +345,7 @@ private fun LoanPaymentEditor(loan: Loan, initial: MoneyTxn?, accounts: List<Acc
     var accountId by remember { mutableStateOf(initial?.accountId ?: lastAccount) }
 
     val choices = accounts.filter { (!it.archived && it.type != AccountType.CREDIT_CARD) || it.id == initial?.accountId }
-    val account = choices.firstOrNull { it.id == accountId } ?: choices.firstOrNull()
+    val account = choices.firstOrNull { it.id == accountId } ?: defaultAccountAmong(choices)
     val amountCents = parseMoney(amount)
     val interestCents = if (interest.isBlank()) 0L else parseMoney(interest)
     val valid = amountCents != null && amountCents > 0 && interestCents != null && interestCents in 0..amountCents && account != null
