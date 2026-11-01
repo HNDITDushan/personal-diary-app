@@ -87,6 +87,8 @@ private data class TimelineItem(
     val subtitle: String,
     val source: Any,
     val typeLabel: String = filter.itemLabel,
+    /** Shown in its own filter only: on the full timeline its linked expense stands for both. */
+    val hiddenInAll: Boolean = false,
 )
 
 private val activityColor = Color(0xFF5C6BC0)
@@ -128,7 +130,7 @@ private fun Appointment.toItem(): TimelineItem {
     )
 }
 
-private fun MoneyTxn.toItem(accounts: Map<Long, Account>): TimelineItem {
+private fun MoneyTxn.toItem(accounts: Map<Long, Account>, isGoodDeed: Boolean): TimelineItem {
     val account = accounts[accountId]?.name.orEmpty()
     val counter = counterAccountId?.let { accounts[it]?.name }
     val where = when (kind) {
@@ -137,10 +139,11 @@ private fun MoneyTxn.toItem(accounts: Map<Long, Account>): TimelineItem {
         else -> account
     }
     return TimelineItem(
-        "m$id", TimelineFilter.MONEY, date.epochDayToDate(), time.storedToTime(), kind.emoji, moneyColor,
+        "m$id", TimelineFilter.MONEY, date.epochDayToDate(), time.storedToTime(),
+        if (isGoodDeed) "💛" else kind.emoji, if (isGoodDeed) deedColor else moneyColor,
         description.ifBlank { category.ifBlank { kind.label } },
         listOf(signedAmount(), where, category).filter { it.isNotBlank() }.joinToString(" · "),
-        this, kind.label,
+        this, if (isGoodDeed) "${kind.label} · Good deed" else kind.label,
     )
 }
 
@@ -162,18 +165,20 @@ fun TimelineView() {
 
     val allItems = remember(entries, places, tasks, appointments, money, accounts) {
         val accountsById = accounts.associateBy { it.id }
-        entries.map { it.toItem() } +
+        val deedUids = entries.mapTo(mutableSetOf()) { it.uid }
+        val linkedDeeds = money.mapNotNullTo(mutableSetOf()) { it.goodDeedUid }
+        entries.map { it.toItem().copy(hiddenInAll = it.uid in linkedDeeds) } +
             places.map { it.toItem() } +
             tasks.filter { it.done && it.completedAt != null }.map { it.toItem() } +
             appointments.map { it.toItem() } +
-            money.map { it.toItem(accountsById) }
+            money.map { it.toItem(accountsById, it.goodDeedUid != null && it.goodDeedUid in deedUids) }
     }
     val moodByDay = remember(moods) { moods.associate { it.date.epochDayToDate() to it.mood } }
 
     val days: List<Pair<LocalDate, List<TimelineItem>>> = remember(allItems, moodByDay, filter, query) {
         val q = query.trim()
         val shown = allItems.filter { item ->
-            (filter == TimelineFilter.ALL || item.filter == filter) &&
+            (if (filter == TimelineFilter.ALL) !item.hiddenInAll else item.filter == filter) &&
                 (q.isEmpty() || item.title.contains(q, ignoreCase = true) || item.subtitle.contains(q, ignoreCase = true))
         }
         val byDay = shown.groupBy { it.date }.toMutableMap()

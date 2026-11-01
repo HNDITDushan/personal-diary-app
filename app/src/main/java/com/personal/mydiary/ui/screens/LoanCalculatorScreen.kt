@@ -1,5 +1,11 @@
 package com.personal.mydiary.ui.screens
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -8,23 +14,41 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CloudUpload
+import androidx.compose.material.icons.outlined.PictureAsPdf
+import androidx.compose.material.icons.outlined.TableChart
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.personal.mydiary.data.LoanPdf
+import com.personal.mydiary.data.LoanReport
+import com.personal.mydiary.data.LoanXlsx
 import com.personal.mydiary.data.ScheduleRow
+import com.personal.mydiary.data.SheetSettings
+import com.personal.mydiary.data.SheetSync
 import com.personal.mydiary.data.repaymentSchedule
 import com.personal.mydiary.data.suggestedInstallment
 import com.personal.mydiary.ui.ChoiceChips
@@ -34,12 +58,17 @@ import com.personal.mydiary.ui.InfoCard
 import com.personal.mydiary.ui.SectionTitle
 import com.personal.mydiary.util.formatMoney
 import com.personal.mydiary.util.parseMoney
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.OutputStream
+import java.time.LocalDate
 
 private const val MAX_MONTHS = 600
 
 /** Works out a loan on paper; nothing here is saved or changes your real loans. */
 @Composable
-fun LoanCalculatorScreen(onBack: () -> Unit) {
+fun LoanCalculatorScreen(onBack: () -> Unit, onLinkSheet: () -> Unit) {
     var findMonths by rememberSaveable { mutableStateOf(false) }
     var amount by rememberSaveable { mutableStateOf("") }
     var rate by rememberSaveable { mutableStateOf("") }
@@ -65,6 +94,49 @@ fun LoanCalculatorScreen(onBack: () -> Unit) {
     val installment = installmentFor(flat)
     val schedule = scheduleFor(flat)
     val other = scheduleFor(!flat)
+
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var saved by remember { mutableStateOf<Pair<Uri, String>?>(null) }
+    val sheetSettings = remember { SheetSettings(context) }
+    var sendingToSheet by remember { mutableStateOf(false) }
+    var savedTab by remember { mutableStateOf<String?>(null) }
+    var askToLinkSheet by remember { mutableStateOf(false) }
+
+    fun report() = LoanReport(amountCents ?: 0, rateValue ?: 0.0, flat, installment ?: 0, schedule, other.takeIf { it.isNotEmpty() }?.sumOf { it.interest })
+
+    fun saveToSheet() {
+        if (!sheetSettings.isConfigured) {
+            askToLinkSheet = true
+            return
+        }
+        sendingToSheet = true
+        scope.launch {
+            val current = report()
+            val tab = current.sheetTabName()
+            runCatching { SheetSync.saveTab(context, tab, LoanReport.SHEET_COLUMNS, current.sheetRows()) }
+                .onSuccess { savedTab = tab }
+                .onFailure { Toast.makeText(context, "Couldn't save to the sheet: ${it.message}. Check your internet connection.", Toast.LENGTH_LONG).show() }
+            sendingToSheet = false
+        }
+    }
+
+    fun save(uri: Uri?, mime: String, write: (LoanReport, OutputStream) -> Unit) {
+        if (uri == null || installment == null) return
+        val report = report()
+        scope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val out = context.contentResolver.openOutputStream(uri, "wt") ?: error("Couldn't open the file")
+                    out.use { write(report, it) }
+                }
+            }.onSuccess { saved = uri to mime }
+                .onFailure { Toast.makeText(context, "Couldn't save the file: ${it.message}", Toast.LENGTH_LONG).show() }
+        }
+    }
+
+    val savePdf = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(LoanPdf.MIME)) { save(it, LoanPdf.MIME, LoanPdf::write) }
+    val saveExcel = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(LoanXlsx.MIME)) { save(it, LoanXlsx.MIME, LoanXlsx::write) }
 
     DiaryScaffold(title = "Loan calculator", onBack = onBack) { padding ->
         LazyColumn(
@@ -127,6 +199,30 @@ fun LoanCalculatorScreen(onBack: () -> Unit) {
                         }
                     }
                 }
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val stem = "Loan-calculation-${LocalDate.now()}"
+                        FilledTonalButton(onClick = { savePdf.launch("$stem.pdf") }, modifier = Modifier.weight(1f)) {
+                            Icon(Icons.Outlined.PictureAsPdf, null, Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Download PDF")
+                        }
+                        FilledTonalButton(onClick = { saveExcel.launch("$stem.xlsx") }, modifier = Modifier.weight(1f)) {
+                            Icon(Icons.Outlined.TableChart, null, Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Download Excel")
+                        }
+                    }
+                    OutlinedButton(
+                        onClick = ::saveToSheet,
+                        enabled = !sendingToSheet,
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    ) {
+                        Icon(Icons.Outlined.CloudUpload, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (sendingToSheet) "Saving to Google Sheet…" else "Save to Google Sheet")
+                    }
+                }
                 if (other.isNotEmpty()) {
                     item {
                         val otherInterest = other.sumOf { it.interest }
@@ -170,6 +266,55 @@ fun LoanCalculatorScreen(onBack: () -> Unit) {
                 }
             }
         }
+    }
+
+    savedTab?.let { tab ->
+        AlertDialog(
+            onDismissRequest = { savedTab = null },
+            title = { Text("Saved to Google Sheet") },
+            text = { Text("This calculation is in your sheet, in a new tab called \"$tab\".") },
+            confirmButton = {
+                val url = sheetSettings.sheetUrl
+                if (url.isNotBlank()) {
+                    TextButton(onClick = {
+                        savedTab = null
+                        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                    }) { Text("Open sheet") }
+                }
+            },
+            dismissButton = { TextButton(onClick = { savedTab = null }) { Text("Close") } },
+        )
+    }
+
+    if (askToLinkSheet) {
+        AlertDialog(
+            onDismissRequest = { askToLinkSheet = false },
+            title = { Text("Link a Google Sheet first") },
+            text = { Text("To save calculations to a sheet, link one under More → Google Sheet. It only takes a few minutes, once.") },
+            confirmButton = {
+                TextButton(onClick = { askToLinkSheet = false; onLinkSheet() }) { Text("Set up") }
+            },
+            dismissButton = { TextButton(onClick = { askToLinkSheet = false }) { Text("Not now") } },
+        )
+    }
+
+    saved?.let { (uri, mime) ->
+        AlertDialog(
+            onDismissRequest = { saved = null },
+            title = { Text("File saved") },
+            text = { Text("Your loan calculation has been saved where you chose.") },
+            confirmButton = {
+                TextButton(onClick = { saved = null; openFile(context, uri, mime) }) { Text("Open") }
+            },
+            dismissButton = { TextButton(onClick = { saved = null }) { Text("Close") } },
+        )
+    }
+}
+
+private fun openFile(context: Context, uri: Uri, mime: String) {
+    val intent = Intent(Intent.ACTION_VIEW).setDataAndType(uri, mime).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    runCatching { context.startActivity(intent) }.onFailure {
+        Toast.makeText(context, "No app on this phone can open this file.", Toast.LENGTH_LONG).show()
     }
 }
 

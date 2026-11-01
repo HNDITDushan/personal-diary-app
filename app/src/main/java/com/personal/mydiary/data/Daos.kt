@@ -62,6 +62,9 @@ interface AppointmentDao {
 
 @Dao
 interface EntryDao {
+    @Query("SELECT * FROM entries WHERE uid = :uid LIMIT 1")
+    suspend fun byUid(uid: String): DiaryEntry?
+
     @Query("SELECT * FROM entries ORDER BY date DESC, time DESC, id DESC")
     fun observeAll(): Flow<List<DiaryEntry>>
 

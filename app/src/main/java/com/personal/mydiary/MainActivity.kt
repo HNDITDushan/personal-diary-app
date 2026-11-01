@@ -124,7 +124,7 @@ fun AppRoot() {
             composable(Routes.REPORT) { ReportScreen(onBack = nav::popBackStack) }
             composable(Routes.BACKUP) { BackupScreen(onBack = nav::popBackStack) }
             composable(Routes.SHEET) { SheetScreen(onBack = nav::popBackStack) }
-            composable(Routes.LOAN_CALCULATOR) { LoanCalculatorScreen(onBack = nav::popBackStack) }
+            composable(Routes.LOAN_CALCULATOR) { LoanCalculatorScreen(onBack = nav::popBackStack, onLinkSheet = { nav.navigate(Routes.SHEET) }) }
         }
     }
 }

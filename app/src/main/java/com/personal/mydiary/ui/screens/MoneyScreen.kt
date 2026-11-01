@@ -446,7 +446,7 @@ private fun EntriesTab(month: YearMonth, onMonth: (YearMonth) -> Unit, accounts:
             items(dayTxns, key = { it.id }) { t ->
                 val time = t.time.storedToTime()?.format(timeFormat)
                 CompactRow(
-                    emoji = t.kind.emoji,
+                    emoji = if (t.goodDeedUid != null) "💛" else t.kind.emoji,
                     headline = t.description.ifBlank { t.category.ifBlank { t.kind.label } },
                     supporting = listOfNotNull(time, names[t.accountId], t.category.takeIf { it.isNotBlank() }).joinToString(" · "),
                     trailing = t.signedAmount(),

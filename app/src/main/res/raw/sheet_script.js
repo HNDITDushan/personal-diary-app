@@ -169,6 +169,12 @@ const KINDS = {
   task: { label: '✅ Task done', color: '#e8f5e9' },
   appointment: { label: '📅 Appointment', color: '#fff3e0' },
   mood: { label: '🙂 Mood', color: '#f5f5f5' },
+  money: { label: '💰 Money', color: '#e0f7fa' },
+};
+
+const MONEY_EMOJI = {
+  'Income': '💰', 'Expense': '💸', 'Transfer': '🔁', 'Card payment': '💳', 'Interest': '📈',
+  'Fee': '🧾', 'Refund': '↩️', 'Loan payment': '🏦', 'Loan received': '🏦',
 };
 
 function onOpen() {
@@ -215,6 +221,9 @@ function loadData(ss, tz) {
     tasks: read('Tasks'),
     appointments: read('Appointments'),
     special: read('Special days'),
+    money: read('Money'),
+    accounts: read('Accounts'),
+    loans: read('Loans'),
     moods: moods,
   };
 }
@@ -282,7 +291,53 @@ function timelineItems(data, tz) {
   data.appointments.forEach(function (r) {
     add('appointment', dayKey(r['Date'], tz), timeKey(r['Time'], tz), r['Title'], joinParts([r['Location'], r['Notes']]));
   });
+  data.money.forEach(function (r) {
+    const type = String(r['Type'] || 'Expense');
+    const it = {
+      day: dayKey(r['Date'], tz), time: timeKey(r['Time'], tz), kind: 'money',
+      title: String(r['Description'] || r['Category'] || type),
+      details: joinParts(['Rs ' + moneyText(amountOf(r['Amount'])), r['Account'], r['Other account'] ? (type === 'Card payment' ? 'paid from ' : '→ ') + r['Other account'] : '', r['Category']]),
+      label: (MONEY_EMOJI[type] || '💰') + ' ' + type,
+    };
+    if (it.day) items.push(it);
+  });
   return items;
+}
+
+function amountOf(v) {
+  const n = Number(String(v === null || v === undefined ? '' : v).replace(/,/g, ''));
+  return isNaN(n) ? 0 : n;
+}
+
+/** 1234.5 becomes 1,234.50 */
+function moneyText(n) {
+  const fixed = Math.abs(n).toFixed(2).split('.');
+  return (n < 0 ? '-' : '') + fixed[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '.' + fixed[1];
+}
+
+/** Income, spending and interest for one month from the Money tab; moves between accounts don't count. */
+function moneyStats(data, tz, ym) {
+  const s = { income: 0, spending: 0, interest: 0, fees: 0, loanInterest: 0, loanRepaid: 0, cardPayments: 0, categories: {} };
+  data.money.forEach(function (r) {
+    if (dayKey(r['Date'], tz).slice(0, 7) !== ym) return;
+    const amount = amountOf(r['Amount']);
+    const type = String(r['Type'] || 'Expense');
+    if (type === 'Income') s.income += amount;
+    else if (type === 'Refund') s.spending -= amount;
+    else if (type === 'Interest') s.interest += amount;
+    else if (type === 'Fee') s.fees += amount;
+    else if (type === 'Card payment') s.cardPayments += amount;
+    else if (type === 'Loan payment') {
+      const part = amountOf(r['Interest part']);
+      s.loanInterest += part;
+      s.loanRepaid += amount - part;
+    } else if (type === 'Expense') {
+      s.spending += amount;
+      const c = String(r['Category'] || 'Uncategorised');
+      s.categories[c] = (s.categories[c] || 0) + amount;
+    }
+  });
+  return s;
 }
 
 function freshSheet(ss, name) {
@@ -340,7 +395,7 @@ function buildTimeline(ss, data) {
     if (it.day !== lastDay) { band = !band; lastDay = it.day; }
     const mood = data.moods[it.day];
     const base = band ? '#ffffff' : '#faf7fc';
-    rows.push([it.day, it.time, KINDS[it.kind].label, it.title, it.details, mood ? MOOD_STYLE[mood.mood].emoji + ' ' + mood.mood : '']);
+    rows.push([it.day, it.time, it.label || KINDS[it.kind].label, it.title, it.details, mood ? MOOD_STYLE[mood.mood].emoji + ' ' + mood.mood : '']);
     backgrounds.push([base, base, KINDS[it.kind].color, base, base, mood ? MOOD_STYLE[mood.mood].color : base]);
   });
   const range = sheet.getRange(2, 1, rows.length, header.length);
@@ -504,8 +559,50 @@ function buildDashboard(ss, data, tz) {
   right = writeTable(sheet, right, 9, '📅 Upcoming appointments', ['Date', 'Time', 'Appointment', 'Where'], appts,
     'No upcoming appointments.');
 
+  // Money for this month, beside balances and what's owed.
+  const money = moneyStats(data, tz, thisMonth);
+  const moneyTop = Math.max(left, right) + 1;
+  const net = money.income - money.spending - money.interest - money.fees - money.loanInterest;
+  const moneyRows = [
+    ['Income', moneyText(money.income)],
+    ['Spending', moneyText(money.spending)],
+    ['Card interest', moneyText(money.interest)],
+    ['Fees', moneyText(money.fees)],
+    ['Loan interest', moneyText(money.loanInterest)],
+    [net >= 0 ? 'Saved' : 'Overspent', moneyText(Math.abs(net))],
+    ['Card payments (not a cost)', moneyText(money.cardPayments)],
+    ['Loans repaid (not a cost)', moneyText(money.loanRepaid)],
+  ];
+  Object.keys(money.categories).sort(function (a, b) { return money.categories[b] - money.categories[a]; }).slice(0, 8)
+    .forEach(function (c) { moneyRows.push(['  ' + c, moneyText(money.categories[c])]); });
+  const moneyEnd = writeTable(sheet, moneyTop, 1, '💰 Money — ' + monthLabel(thisMonth) + ' (Rs)', ['', 'Rs'], moneyRows, '');
+  for (let r = 0; r <= moneyRows.length; r++) sheet.getRange(moneyTop + 1 + r, 2).setHorizontalAlignment('right');
+  sheet.setColumnWidth(1, 190);
+
+  const balanceCol = 'Balance now (owed on cards)';
+  const live = data.accounts.filter(function (r) { return !isTrue(r['No longer used']); });
+  const isCard = function (r) { return String(r['Type']) === 'Credit card'; };
+  const counted = live.filter(function (r) { return !isCard(r) && !isTrue(r['Not in total']); });
+  const balanceRows = [];
+  if (data.accounts.length > 0) {
+    balanceRows.push(['Cash & bank total', moneyText(counted.reduce(function (t, r) { return t + amountOf(r[balanceCol]); }, 0))]);
+    live.filter(function (r) { return !isCard(r); }).forEach(function (r) {
+      balanceRows.push(['  ' + r['Name'] + (isTrue(r['Not in total']) ? ' (not in total)' : ''), moneyText(amountOf(r[balanceCol]))]);
+    });
+    balanceRows.push(['Credit cards owed', moneyText(live.filter(isCard).reduce(function (t, r) { return t + amountOf(r[balanceCol]); }, 0))]);
+    live.filter(isCard).forEach(function (r) { balanceRows.push(['  ' + r['Name'], moneyText(amountOf(r[balanceCol]))]); });
+    const open = data.loans.filter(function (r) { return !isTrue(r['Closed']); });
+    balanceRows.push(['Loans owed', moneyText(open.reduce(function (t, r) { return t + amountOf(r['Owed now']); }, 0))]);
+    open.forEach(function (r) { balanceRows.push(['  ' + r['Name'], moneyText(amountOf(r['Owed now']))]); });
+  }
+  const balanceEnd = writeTable(sheet, moneyTop, 9, '🏦 Balances now (Rs)', ['', 'Rs'], balanceRows, 'Sync the app to see your accounts here.');
+  for (let r = 0; r < balanceRows.length; r++) {
+    sheet.getRange(moneyTop + 2 + r, 10).setHorizontalAlignment('right');
+  }
+  sheet.setColumnWidth(9, 190);
+
   // Twelve-month trend table with charts below it.
-  const top = Math.max(left, right) + 1;
+  const top = Math.max(moneyEnd, balanceEnd) + 1;
   // Columns: Month, Days rated, one per mood, Happiness, Good deeds, then the other counts.
   const trendHeader = ['Month', 'Days rated'].concat(MOODS)
     .concat(['Happiness', 'Good deeds', 'Activities', 'Memories', 'Places', 'Tasks done']);

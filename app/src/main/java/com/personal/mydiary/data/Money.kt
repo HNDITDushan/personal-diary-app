@@ -3,6 +3,7 @@ package com.personal.mydiary.data
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.personal.mydiary.util.formatMoney
 import kotlinx.serialization.Serializable
 
 enum class AccountType { CASH, BANK, CREDIT_CARD }
@@ -53,6 +54,8 @@ data class MoneyTxn(
     /** The loan this entry belongs to, and how much of a [TxnKind.LOAN_PAYMENT] was interest. */
     val loanId: Long? = null,
     val interestPart: Long = 0,
+    /** The good deed this expense also counts as, by the diary entry's uid. */
+    val goodDeedUid: String? = null,
     val uid: String = newUid(),
     val updatedAt: Long = System.currentTimeMillis(),
 )
@@ -113,4 +116,21 @@ private val categoryKeywords = listOf(
 fun guessCategory(description: String): String {
     val text = description.uppercase()
     return categoryKeywords.firstOrNull { (_, words) -> words.any { it in text } }?.first.orEmpty()
+}
+
+/**
+ * The good deed for an expense marked as one. Date, time and people follow the expense. The title
+ * and details follow it too, unless they've been edited in the diary, so a note added there is kept.
+ */
+fun goodDeedFor(expense: MoneyTxn, existing: DiaryEntry?, people: String, previous: MoneyTxn?): DiaryEntry {
+    fun titleOf(t: MoneyTxn) = t.description.ifBlank { t.category.ifBlank { "Good deed" } }
+    fun detailsOf(t: MoneyTxn) = formatMoney(t.amount)
+    val deed = existing ?: DiaryEntry(type = EntryType.GOOD_DEED, date = expense.date, title = titleOf(expense), details = detailsOf(expense))
+    val followsTitle = previous == null || deed.title == titleOf(previous)
+    val followsDetails = previous == null || deed.details == detailsOf(previous)
+    return deed.copy(
+        date = expense.date, time = expense.time, people = people,
+        title = if (followsTitle) titleOf(expense) else deed.title,
+        details = if (followsDetails) detailsOf(expense) else deed.details,
+    )
 }

@@ -10,7 +10,7 @@ A personal day-to-day diary and organiser. Kotlin, Jetpack Compose (Material 3),
 | **Tasks** | To-do list with due date, priority, notes; filter To do / Done / All; overdue tasks shown in red |
 | **Diary** | Daily **Activities**, **Memories** and **Good deeds** (who you helped), grouped by day |
 | **Events** | **Appointments** (with reminder notification) and **Special days**: birthdays, anniversaries, other yearly days. **Sync from contacts** imports birthdays and anniversaries from your Google contacts |
-| **Money** | **Dashboard** (balances, saved or overspent, 6-month chart, spending by category, card spending, payments, interest and fees), **Entries** (income, expenses, transfers, card payments), **Accounts** (cash, bank, credit cards), **Credit cards** (upload PDF statements), **Loans** (balance, installments, principal and interest on each payment, months and interest left, due-date reminders, and a loan calculator) |
+| **Money** | **Dashboard** (balances, saved or overspent, 6-month chart, spending by category, card spending, payments, interest and fees), **Entries** (income, expenses, transfers, card payments), **Accounts** (cash, bank, credit cards), **Credit cards** (upload PDF statements), **Loans** (balance, installments, principal and interest on each payment, months and interest left, due-date reminders, and a loan calculator that can save its results as PDF, Excel or a new tab in your Google Sheet) |
 | **More → Places I visited** | Save a place with your current GPS location (address filled in automatically); open it in Google Maps |
 | **More → Monthly report** | Happiness score for the month, with a verdict (happy / mixed / unhappy), a mood calendar, the list of good deeds ("How I helped others"), and counts of tasks, activities, memories and places |
 | **More → Google Sheet** | Two-way sync with a Google Sheet: everything in the app is copied to the sheet (one tab each for Tasks, Appointments, Activities, Memories, Good deeds, Special days, Places, Moods), and rows you add, change or delete in the sheet are applied in the app. Syncs about a minute after each change and every hour, or on demand |
@@ -36,7 +36,7 @@ Under **Money → Credit cards → Upload statement**, pick a statement PDF. Eac
 
 The app reads lines that start with a date and end with an amount, then shows them for review before saving anything. It compares the lines with the statement's own balances and warns about a difference. If lines come up short, for example when interest appears only in the summary, the difference can be added as an interest line. Lines already imported are left unticked, and tapping a statement lets you remove it with its entries. PDFs are not copied into the app, long card numbers are masked, and scanned image PDFs can't be read.
 
-Transfers and card payments only move money between your own accounts, so they don't count as income or spending. Only the interest part of a loan payment counts as a cost, and money received from a loan is not income. Money and loan data is included in backup files but is not synced to the Google Sheet.
+Transfers and card payments only move money between your own accounts, so they don't count as income or spending. Only the interest part of a loan payment counts as a cost, and money received from a loan is not income. Money and loan data is included in backup files and synced to the Google Sheet.
 
 ## Google Sheet set-up
 
@@ -51,6 +51,8 @@ After every sync the script also rebuilds two read-only tabs at the front of the
 
 - **Dashboard**: this month's happiness score and verdict, counts (days rated, good deeds, activities, places, tasks done), a colour-coded mood calendar, birthdays and special days in the next 30 days, upcoming appointments, this month's good deeds, and a 12-month trend table with charts (happiness, days by mood, good deeds).
 - **Timeline**: everything recorded, newest first, with type, details and the day's mood; it has a filter on the header row.
+
+Money syncs both ways in three tabs: **Money** (add a row with at least an amount; the account defaults to cash and the date to today), **Accounts** and **Loans**. Credit cards are named like `Town Bank (Card)` in the Money tab, so a bank account and card can share a name. Accounts and loans with entries can't be deleted from the sheet: their rows come back on the next sync. Missing or empty tabs never delete anything from the app.
 
 The sheet's **My Diary → Refresh Dashboard & Timeline** menu rebuilds them after hand edits. If you set up the sheet with an older script, paste the new one and use **Deploy → Manage deployments → Edit → New version**; the web app URL stays the same.
 

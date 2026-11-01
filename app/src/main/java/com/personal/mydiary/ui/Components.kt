@@ -174,10 +174,10 @@ fun TextInput(value: String, onChange: (String) -> Unit, label: String, singleLi
 
 /** Tappable chips of earlier entries that match what's been typed so far. */
 @Composable
-fun SuggestionRow(query: String, options: List<String>, onPick: (String) -> Unit) {
+fun SuggestionRow(query: String, options: List<String>, limit: Int = 10, onPick: (String) -> Unit) {
     val q = query.trim()
     val matches = remember(q, options) {
-        options.filter { !it.equals(q, ignoreCase = true) && (q.isEmpty() || it.contains(q, ignoreCase = true)) }.take(10)
+        options.filter { !it.equals(q, ignoreCase = true) && (q.isEmpty() || it.contains(q, ignoreCase = true)) }.take(limit)
     }
     if (matches.isEmpty()) return
     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

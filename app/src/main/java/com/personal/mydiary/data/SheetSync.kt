@@ -113,14 +113,16 @@ object SheetSync {
             pulled["url"]?.jsonPrimitive?.content?.let { settings.sheetUrl = it }
             val sheetTabs = pulled["tabs"]?.jsonObject ?: JsonObject(emptyMap())
 
-            val stats = Stats()
+            val stats = MergeStats()
             val now = System.currentTimeMillis()
-            val outgoing = tables.associate { table ->
+            // In order: accounts and loans first, so entries added in the sheet can refer to new ones.
+            val merged = tables.map { table ->
                 val rows = (sheetTabs[table.tab] as? JsonArray).orEmpty().map { row ->
                     row.jsonObject.mapValues { (_, v) -> (v as? JsonPrimitive)?.content.orEmpty() }
                 }
-                table.tab to (table.columns to table.merge(context, db, rows, settings.lastServer, settings.lastLocal, now, stats))
+                table to table.merge(context, db, rows, table.tab in sheetTabs, settings.lastServer, settings.lastLocal, now, stats)
             }
+            val outgoing = merged.associate { (table, rows) -> table.tab to (table.columns to table.decorate(db, rows)) }
             val mergedAt = System.currentTimeMillis()
 
             val body = buildJsonObject {
@@ -151,6 +153,22 @@ object SheetSync {
             db.appointments().upcoming(System.currentTimeMillis()).forEach { AppointmentReminders.schedule(context, it) }
             Result(stats.added, stats.updated, stats.deleted)
         }
+    }
+
+    /** Adds or replaces one tab that isn't part of the sync; the sync leaves other tabs alone. */
+    suspend fun saveTab(context: Context, tab: String, columns: List<String>, rows: List<Map<String, String>>) = withContext(Dispatchers.IO) {
+        val settings = SheetSettings(context)
+        check(settings.isConfigured) { "Link a Google Sheet first" }
+        val body = buildJsonObject {
+            put("token", settings.token)
+            putJsonObject("tabs") {
+                putJsonObject(tab) {
+                    putJsonArray("columns") { columns.forEach { name -> add(buildJsonObject { put("name", name) }) } }
+                    putJsonArray("rows") { rows.forEach { row -> add(JsonObject(row.mapValues { JsonPrimitive(it.value) })) } }
+                }
+            }
+        }
+        parse(request(settings.url, body.toString()))
     }
 
     /** Checks the link and secret key without changing anything; returns the sheet's name. */
@@ -202,8 +220,6 @@ object SheetSync {
         error("Too many redirects from Google")
     }
 
-    private class Stats { var added = 0; var updated = 0; var deleted = 0 }
-
     private class Column(val name: String, val choices: List<String>? = null)
 
     private abstract class Table<T : Any>(val tab: String, columns: List<Column>) {
@@ -221,53 +237,31 @@ object SheetSync {
         abstract suspend fun remove(context: Context, db: AppDatabase, item: T)
 
         open fun rowKey(row: Map<String, String>): String? = row["uid"]?.trim()?.takeIf { it.isNotEmpty() }
+        open suspend fun canRemove(db: AppDatabase, item: T): Boolean = true
+
+        /** Loads what rows need from other tables; runs just before this tab is merged. */
+        open suspend fun prepare(db: AppDatabase) {}
+
+        /** Fills read-only columns, once every tab has been merged and the figures are final. */
+        open suspend fun decorate(db: AppDatabase, rows: List<Map<String, String>>) = rows
 
         suspend fun merge(
-            context: Context, db: AppDatabase, sheetRows: List<Map<String, String>>,
-            lastServer: Long, lastLocal: Long, now: Long, stats: Stats,
+            context: Context, db: AppDatabase, sheetRows: List<Map<String, String>>, tabExists: Boolean,
+            lastServer: Long, lastLocal: Long, now: Long, stats: MergeStats,
         ): List<Map<String, String>> {
-            val local = all(db).associateBy(::key)
-            val seen = mutableSetOf<String>()
-            val out = mutableListOf<Map<String, String>>()
-
-            for (row in sheetRows) {
-                val key = rowKey(row)
-                if (key != null && !seen.add(key)) continue // duplicate row in the sheet
-                val rowUpdated = row["updatedAt"]?.toDoubleOrNull()?.toLong() ?: 0L
-                val sheetChanged = rowUpdated == 0L || rowUpdated > lastServer
-                val existing = key?.let(local::get)
-
-                if (existing != null) {
-                    val localChanged = updatedAt(existing) > lastLocal
-                    val parsed = if (sheetChanged && !localChanged) fromRow(row, existing, key, now) else null
-                    when {
-                        sheetChanged && !localChanged && parsed == null -> out += row // unreadable edit: keep it as typed
-                        parsed != null && toRow(parsed) != toRow(existing) -> {
-                            store(db, parsed); stats.updated++; out += toRow(parsed)
-                        }
-                        else -> out += toRow(existing)
-                    }
-                } else {
-                    val parsed = fromRow(row, null, key ?: newUid(), now)
-                    when {
-                        parsed == null -> out += row // keep rows the app can't read so nothing typed is lost
-                        key != null && !sheetChanged -> {} // was synced before and has since been deleted in the app
-                        else -> {
-                            store(db, parsed); stats.added++; seen += key(parsed); out += toRow(parsed)
-                        }
-                    }
-                }
+            prepare(db)
+            val table = this
+            val rules = object : MergeRules<T> {
+                override fun key(item: T) = table.key(item)
+                override fun updatedAt(item: T) = table.updatedAt(item)
+                override fun toRow(item: T) = table.toRow(item)
+                override fun rowKey(row: Map<String, String>) = table.rowKey(row)
+                override fun fromRow(row: Map<String, String>, existing: T?, key: String, now: Long) = table.fromRow(row, existing, key, now)
+                override suspend fun store(item: T) = table.store(db, item)
+                override suspend fun remove(item: T) = table.remove(context, db, item)
+                override suspend fun canRemove(item: T) = table.canRemove(db, item)
             }
-
-            for ((key, item) in local) {
-                if (key in seen) continue
-                if (lastLocal > 0 && updatedAt(item) <= lastLocal) {
-                    remove(context, db, item); stats.deleted++ // deleted from the sheet
-                } else {
-                    out += toRow(item)
-                }
-            }
-            return out
+            return mergeSheetRows(rules, all(db), sheetRows, tabExists, lastServer, lastLocal, now, stats)
         }
     }
 
@@ -445,12 +439,104 @@ object SheetSync {
         override suspend fun remove(context: Context, db: AppDatabase, item: DayMood) = db.moods().deleteOn(item.date)
     }
 
+    private object Accounts : Table<Account>(
+        "Accounts",
+        SheetMoney.accountColumns.map {
+            Column(it, when (it) {
+                "Type" -> SheetMoney.accountTypeChoices
+                "Not in total", "No longer used" -> SheetMoney.yesNoChoices
+                else -> null
+            })
+        },
+    ) {
+        override suspend fun all(db: AppDatabase) = db.accounts().getAll()
+        override fun key(item: Account) = item.uid
+        override fun updatedAt(item: Account) = item.updatedAt
+        override fun toRow(item: Account) = SheetMoney.accountToRow(item)
+        override fun fromRow(row: Map<String, String>, existing: Account?, key: String, now: Long) = SheetMoney.parseAccount(row, existing, key, now)
+        override suspend fun store(db: AppDatabase, item: Account) { db.accounts().upsert(item) }
+        override suspend fun remove(context: Context, db: AppDatabase, item: Account) {
+            db.accounts().delete(item)
+            StatementPasswords(context).clear(item.uid)
+        }
+        override suspend fun canRemove(db: AppDatabase, item: Account) =
+            db.moneyTxns().countForAccount(item.id) == 0 && db.statements().getAll().none { it.accountId == item.id }
+
+        override suspend fun decorate(db: AppDatabase, rows: List<Map<String, String>>): List<Map<String, String>> {
+            val accounts = db.accounts().getAll().associateBy { it.uid }
+            val txns = db.moneyTxns().getAll()
+            return rows.map { row ->
+                val account = accounts[row["uid"]] ?: return@map row
+                val balance = account.openingBalance + txns.sumOf { it.effectOn(account.id) }
+                row + (SheetMoney.BALANCE_COLUMN to SheetMoney.amountText(if (account.type == AccountType.CREDIT_CARD) -balance else balance))
+            }
+        }
+    }
+
+    private object Loans : Table<Loan>(
+        "Loans",
+        SheetMoney.loanColumns.map {
+            Column(it, when (it) {
+                "Interest type" -> SheetMoney.loanTypeChoices
+                "Closed" -> SheetMoney.yesNoChoices
+                else -> null
+            })
+        },
+    ) {
+        override suspend fun all(db: AppDatabase) = db.loans().getAll()
+        override fun key(item: Loan) = item.uid
+        override fun updatedAt(item: Loan) = item.updatedAt
+        override fun toRow(item: Loan) = SheetMoney.loanToRow(item)
+        override fun fromRow(row: Map<String, String>, existing: Loan?, key: String, now: Long) = SheetMoney.parseLoan(row, existing, key, now)
+        override suspend fun store(db: AppDatabase, item: Loan) { db.loans().upsert(item) }
+        override suspend fun remove(context: Context, db: AppDatabase, item: Loan) = db.loans().delete(item)
+        override suspend fun canRemove(db: AppDatabase, item: Loan) = db.moneyTxns().countForLoan(item.id) == 0
+
+        override suspend fun decorate(db: AppDatabase, rows: List<Map<String, String>>): List<Map<String, String>> {
+            val loans = db.loans().getAll().associateBy { it.uid }
+            val txns = db.moneyTxns().getAll()
+            return rows.map { row ->
+                val loan = loans[row["uid"]] ?: return@map row
+                row + (SheetMoney.OWED_COLUMN to SheetMoney.amountText(loan.balance(txns)))
+            }
+        }
+    }
+
+    private object MoneyEntries : Table<MoneyTxn>("Money", emptyList()) {
+        private var accounts = emptyList<Account>()
+        private var loans = emptyList<Loan>()
+
+        override val columns: List<Column>
+            get() = SheetMoney.entryColumns.map {
+                Column(it, when (it) {
+                    "Type" -> SheetMoney.kindChoices
+                    "Account", "Other account" -> accounts.filter { a -> !a.archived }.map(SheetMoney::accountLabel).ifEmpty { null }
+                    "Loan" -> loans.filter { l -> !l.closed }.map { l -> l.name }.ifEmpty { null }
+                    else -> null
+                })
+            } + Column("uid") + Column("updatedAt")
+
+        override suspend fun prepare(db: AppDatabase) {
+            accounts = db.accounts().getAll()
+            loans = db.loans().getAll()
+        }
+        override suspend fun all(db: AppDatabase) = db.moneyTxns().getAll()
+        override fun key(item: MoneyTxn) = item.uid
+        override fun updatedAt(item: MoneyTxn) = item.updatedAt
+        override fun toRow(item: MoneyTxn) = SheetMoney.entryToRow(item, accounts, loans)
+        override fun fromRow(row: Map<String, String>, existing: MoneyTxn?, key: String, now: Long) =
+            SheetMoney.parseEntry(row, existing, key, now, LocalDate.now(), accounts, loans)
+        override suspend fun store(db: AppDatabase, item: MoneyTxn) = db.moneyTxns().upsert(item)
+        override suspend fun remove(context: Context, db: AppDatabase, item: MoneyTxn) = db.moneyTxns().delete(item)
+    }
+
     private val tables: List<Table<*>> = listOf(
         Tasks, Appointments,
         Entries("Activities", EntryType.ACTIVITY, "With"),
         Entries("Memories", EntryType.MEMORY, "People"),
         Entries("Good deeds", EntryType.GOOD_DEED, "Who I helped"),
         SpecialDays, Places, Moods,
+        Accounts, Loans, MoneyEntries,
     )
 
     // ---- Parsing what people type into the sheet ----
@@ -468,12 +554,14 @@ object SheetSync {
     private fun formatDateTime(millis: Long) =
         Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDateTime().format(dateTimeFormat)
 
-    private fun parseDate(s: String): LocalDate? {
+    internal fun parseDate(s: String): LocalDate? {
         if (s.isEmpty()) return null
         runCatching { return LocalDate.parse(s.take(10)) }
         dayFirst.forEach { f -> runCatching { return LocalDate.parse(s.substringBefore(' '), f) } }
         return null
     }
+
+    internal fun parseTimeText(s: String): String = parseTime(s.trim())?.format(hm).orEmpty()
 
     private fun parseTime(s: String): LocalTime? {
         if (s.isEmpty()) return null
@@ -488,9 +576,9 @@ object SheetSync {
         return date.atTime(parseTime(s.substringAfter(' ', "")) ?: LocalTime.MIDNIGHT)
     }
 
-    private fun parseBool(s: String) = s.lowercase() in setOf("true", "yes", "y", "1", "done", "x", "✓", "✔", "✅")
+    internal fun parseBool(s: String) = s.lowercase() in setOf("true", "yes", "y", "1", "done", "x", "✓", "✔", "✅")
 
-    private fun <E> parseChoice(s: String, names: Map<E, String>): E? =
+    internal fun <E> parseChoice(s: String, names: Map<E, String>): E? =
         names.entries.firstOrNull { it.value.equals(s, ignoreCase = true) }?.key
 
     private fun parseMood(s: String): Mood? = parseChoice(s, moodNames) ?: when (s.lowercase()) {

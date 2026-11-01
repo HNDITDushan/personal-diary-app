@@ -1,6 +1,7 @@
 package com.personal.mydiary.ui.screens
 
 import android.widget.Toast
+import androidx.room.withTransaction
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -11,6 +12,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -25,10 +27,12 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import com.personal.mydiary.data.Account
 import com.personal.mydiary.data.AccountType
+import com.personal.mydiary.data.DiaryEntry
 import com.personal.mydiary.data.MoneyTxn
 import com.personal.mydiary.data.StatementPasswords
 import com.personal.mydiary.data.TxnKind
 import com.personal.mydiary.data.defaultCategories
+import com.personal.mydiary.data.goodDeedFor
 import com.personal.mydiary.data.incomeCategories
 import com.personal.mydiary.data.save
 import com.personal.mydiary.diaryApp
@@ -128,6 +132,18 @@ fun TxnEditor(initial: MoneyTxn?, defaultKind: TxnKind, onDismiss: () -> Unit) {
     var accountId by remember { mutableStateOf(initial?.accountId) }
     var counterId by remember { mutableStateOf(initial?.counterAccountId) }
 
+    // A good deed linked to this expense; it may have been deleted from the diary since.
+    var linkedDeed by remember { mutableStateOf<DiaryEntry?>(null) }
+    var alsoGoodDeed by remember { mutableStateOf(initial?.goodDeedUid != null) }
+    var deedTouched by remember { mutableStateOf(initial != null) }
+    var helped by rememberSaveable { mutableStateOf("") }
+    LaunchedEffect(initial?.goodDeedUid) {
+        val deed = initial?.goodDeedUid?.let { app.db.entries().byUid(it) }
+        linkedDeed = deed
+        alsoGoodDeed = deed != null
+        helped = deed?.people.orEmpty()
+    }
+
     // A card payment goes onto a card; everything else starts from an account you pay out of.
     val cards = accounts.filter { it.type == AccountType.CREDIT_CARD }
     val mainChoices = if (kind == TxnKind.CARD_PAYMENT) cards else if (kind == TxnKind.TRANSFER) accounts.filter { it.type != AccountType.CREDIT_CARD } else accounts
@@ -153,10 +169,35 @@ fun TxnEditor(initial: MoneyTxn?, defaultKind: TxnKind, onDismiss: () -> Unit) {
                 accountId = selectedAccount?.id ?: 0, counterAccountId = selectedCounter?.id,
                 description = description.trim(), category = category.trim(),
             )
-            app.launch { moneyTxns().save(item) }
+            val deedBefore = linkedDeed
+            val makeDeed = alsoGoodDeed && kind == TxnKind.EXPENSE
+            val who = helped.trim()
+            app.launch {
+                withTransaction {
+                    if (makeDeed) {
+                        val deed = goodDeedFor(item, deedBefore, who, initial)
+                        entries().save(deed)
+                        moneyTxns().save(item.copy(goodDeedUid = deed.uid))
+                    } else {
+                        deedBefore?.let { entries().delete(it) }
+                        moneyTxns().save(item.copy(goodDeedUid = null))
+                    }
+                }
+            }
             onDismiss()
         },
-        onDelete = initial?.let { { app.launch { moneyTxns().delete(it) }; onDismiss() } },
+        onDelete = initial?.let {
+            {
+                val deedBefore = linkedDeed
+                app.launch {
+                    withTransaction {
+                        deedBefore?.let { deed -> entries().delete(deed) }
+                        moneyTxns().delete(it)
+                    }
+                }
+                onDismiss()
+            }
+        },
     ) {
         ChoiceChips(kinds, kind, { it.label }) { kind = it }
         AmountInput(amount, { amount = it }, "Amount")
@@ -166,8 +207,24 @@ fun TxnEditor(initial: MoneyTxn?, defaultKind: TxnKind, onDismiss: () -> Unit) {
             suggestions.firstOrNull { it.description == picked }?.let { if (category.isBlank()) category = it.category }
         }
         if (kind == TxnKind.EXPENSE || kind == TxnKind.INCOME || kind == TxnKind.REFUND) {
-            TextInput(category, { category = it }, "Category")
-            SuggestionRow(category, if (kind == TxnKind.INCOME) incomeCategories else defaultCategories) { category = it }
+            fun setCategory(value: String) {
+                category = value
+                if (kind == TxnKind.EXPENSE && value.trim().equals("Donations", ignoreCase = true) && !deedTouched) alsoGoodDeed = true
+            }
+            TextInput(category, ::setCategory, "Category")
+            // Every category, not just the first few: the list is short and scrolls sideways.
+            val categoryChoices = if (kind == TxnKind.INCOME) incomeCategories else defaultCategories
+            SuggestionRow(category, categoryChoices, limit = categoryChoices.size, onPick = ::setCategory)
+        }
+        if (kind == TxnKind.EXPENSE) {
+            Row(
+                Modifier.fillMaxWidth().clickable { deedTouched = true; alsoGoodDeed = !alsoGoodDeed },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Checkbox(checked = alsoGoodDeed, onCheckedChange = { deedTouched = true; alsoGoodDeed = it })
+                Text("💛 This is also a good deed")
+            }
+            if (alsoGoodDeed) TextInput(helped, { helped = it }, "Who did you help? (optional)")
         }
         Text(
             when (kind) {
