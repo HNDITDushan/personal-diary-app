@@ -38,7 +38,7 @@ import com.personal.mydiary.ui.SectionTitle
 import com.personal.mydiary.ui.label
 import com.personal.mydiary.util.dayFormat
 import com.personal.mydiary.util.epochDayToDate
-import com.personal.mydiary.util.storedToTime
+import com.personal.mydiary.util.timeRangeLabel
 import com.personal.mydiary.util.timeFormat
 import com.personal.mydiary.util.today
 import java.time.YearMonth
@@ -102,7 +102,7 @@ fun DiaryScreen() {
                                 headline = e.title,
                                 supporting = listOf(e.details, e.people.takeIf { it.isNotBlank() }?.let { "👥 $it" }.orEmpty())
                                     .filter { it.isNotBlank() }.joinToString("\n"),
-                                trailing = e.time.storedToTime()?.format(timeFormat).orEmpty(),
+                                trailing = timeRangeLabel(e.time, e.endTime),
                                 onClick = { editing = e },
                             )
                         }

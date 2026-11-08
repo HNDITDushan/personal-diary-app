@@ -72,12 +72,12 @@ import com.personal.mydiary.ui.label
 import com.personal.mydiary.util.daysFromToday
 import com.personal.mydiary.util.endMillis
 import com.personal.mydiary.util.epochDayToDate
+import com.personal.mydiary.util.timeRangeLabel
 import com.personal.mydiary.util.longDayFormat
 import com.personal.mydiary.util.millisToDateTime
 import com.personal.mydiary.util.nextOccurrence
 import com.personal.mydiary.util.relativeDay
 import com.personal.mydiary.util.startMillis
-import com.personal.mydiary.util.storedToTime
 import com.personal.mydiary.util.timeFormat
 import com.personal.mydiary.util.today
 import java.time.LocalDate
@@ -256,7 +256,7 @@ fun TodayScreen(onOpen: (String) -> Unit) {
                 headline = e.title,
                 supporting = listOf(e.details, e.people.takeIf { it.isNotBlank() }?.let { "👥 $it" }.orEmpty())
                     .filter { it.isNotBlank() }.joinToString("\n"),
-                trailing = e.time.storedToTime()?.format(timeFormat).orEmpty(),
+                trailing = timeRangeLabel(e.time, e.endTime),
                 onClick = { editingEntry = e },
             )
         }

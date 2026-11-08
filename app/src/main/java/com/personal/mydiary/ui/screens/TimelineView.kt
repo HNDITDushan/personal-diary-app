@@ -61,6 +61,8 @@ import com.personal.mydiary.ui.theme.emoji
 import com.personal.mydiary.ui.theme.label
 import com.personal.mydiary.util.dayFormat
 import com.personal.mydiary.util.epochDayToDate
+import com.personal.mydiary.util.durationLabel
+import com.personal.mydiary.util.timeRangeLabel
 import com.personal.mydiary.util.millisToDateTime
 import com.personal.mydiary.util.relativeDay
 import com.personal.mydiary.util.storedToTime
@@ -106,9 +108,10 @@ private fun DiaryEntry.toItem(): TimelineItem {
         EntryType.GOOD_DEED -> TimelineFilter.GOOD_DEED to deedColor
     }
     val who = people.takeIf { it.isNotBlank() }?.let { if (type == EntryType.GOOD_DEED) "Helped: $it" else "👥 $it" }
+    val span = durationLabel(time, endTime).takeIf { it.isNotEmpty() }?.let { "🕒 ${timeRangeLabel(time, endTime)} ($it)" }
     return TimelineItem(
         "e$id", filter, date.epochDayToDate(), time.storedToTime(), entryEmoji(type), color, title,
-        listOfNotNull(details.takeIf { it.isNotBlank() }, who).joinToString("\n"), this,
+        listOfNotNull(span, details.takeIf { it.isNotBlank() }, who).joinToString("\n"), this,
     )
 }
 

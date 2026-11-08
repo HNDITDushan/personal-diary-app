@@ -17,7 +17,8 @@ enum class EntryType { ACTIVITY, MEMORY, GOOD_DEED }
  * How a day felt. [points] (0–100) feed the monthly happiness score. Moods are stored by name,
  * so new ones can be added at the end without a database change.
  */
-enum class Mood(val points: Int) { GOOD(100), FAIR(50), BAD(0), ANGRY(0), TIRED(30), BUSY(60) }
+/** Listed happiest first; stored by name, so the order can change freely. */
+enum class Mood(val points: Int) { GOOD(100), EXCITED(100), BUSY(60), FAIR(50), TIRED(30), SICK(10), BAD(0), ANGRY(0) }
 
 enum class OccasionType { BIRTHDAY, ANNIVERSARY, SPECIAL }
 
@@ -61,6 +62,8 @@ data class DiaryEntry(
     val date: Long,
     /** "HH:mm", or empty when no time was given. */
     val time: String = "",
+    /** "HH:mm" when the activity ran until a set time, otherwise empty. */
+    val endTime: String = "",
     val title: String,
     val details: String = "",
     val people: String = "",

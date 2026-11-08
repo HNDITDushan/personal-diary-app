@@ -267,10 +267,13 @@ object SheetSync {
 
     // ---- Tabs ----
 
+    private const val TO_TIME = "To time"
+
     private val priorities = mapOf(Priority.LOW to "Low", Priority.NORMAL to "Normal", Priority.HIGH to "High")
     private val moodNames = mapOf(
         Mood.GOOD to "Good", Mood.FAIR to "Fair", Mood.BAD to "Bad",
         Mood.ANGRY to "Angry", Mood.TIRED to "Tired", Mood.BUSY to "Busy",
+        Mood.SICK to "Sick", Mood.EXCITED to "Excited",
     )
     private val occasionNames = mapOf(
         OccasionType.BIRTHDAY to "Birthday", OccasionType.ANNIVERSARY to "Anniversary", OccasionType.SPECIAL to "Special day",
@@ -339,7 +342,8 @@ object SheetSync {
     }
 
     private class Entries(tab: String, private val type: EntryType, private val peopleColumn: String) : Table<DiaryEntry>(
-        tab, listOf(Column("Date"), Column("Time"), Column("Title"), Column("Details"), Column(peopleColumn)),
+        tab,
+        listOfNotNull(Column("Date"), Column("Time"), Column(TO_TIME).takeIf { type == EntryType.ACTIVITY }, Column("Title"), Column("Details"), Column(peopleColumn)),
     ) {
         override suspend fun all(db: AppDatabase) = db.entries().getAll().filter { it.type == type }
         override fun key(item: DiaryEntry) = item.uid
@@ -347,13 +351,14 @@ object SheetSync {
         override fun toRow(item: DiaryEntry) = mapOf(
             "Date" to LocalDate.ofEpochDay(item.date).toString(), "Time" to item.time, "Title" to item.title,
             "Details" to item.details, peopleColumn to item.people, "uid" to item.uid,
-        )
+        ) + if (type == EntryType.ACTIVITY) mapOf(TO_TIME to item.endTime) else emptyMap()
         override fun fromRow(row: Map<String, String>, existing: DiaryEntry?, key: String, now: Long): DiaryEntry? {
             val title = row.text("Title").ifEmpty { return null }
             val dateText = row.text("Date")
             val date = if (dateText.isEmpty()) LocalDate.now() else parseDate(dateText) ?: return null
             return (existing ?: DiaryEntry(type = type, date = 0, title = title, uid = key)).copy(
                 date = date.toEpochDay(), time = parseTime(row.text("Time"))?.format(hm).orEmpty(), title = title,
+                endTime = if (type == EntryType.ACTIVITY) parseTime(row.text(TO_TIME))?.format(hm).orEmpty() else existing?.endTime.orEmpty(),
                 details = row.text("Details"), people = row.text(peopleColumn), updatedAt = now,
             )
         }
@@ -588,6 +593,8 @@ object SheetSync {
         "😠", "😡", "😤", "mad", "angry" -> Mood.ANGRY
         "😴", "🥱", "sleepy", "exhausted" -> Mood.TIRED
         "🤯", "💼", "hectic" -> Mood.BUSY
+        "🤒", "🤧", "ill", "unwell", "fever" -> Mood.SICK
+        "🤩", "🥳", "thrilled", "excite" -> Mood.EXCITED
         else -> null
     }
 

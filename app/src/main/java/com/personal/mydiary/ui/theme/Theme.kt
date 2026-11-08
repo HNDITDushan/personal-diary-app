@@ -132,6 +132,8 @@ val Mood.emoji: String
         Mood.ANGRY -> "😠"
         Mood.TIRED -> "😴"
         Mood.BUSY -> "🤯"
+        Mood.SICK -> "🤒"
+        Mood.EXCITED -> "🤩"
     }
 
 val Mood.label: String
@@ -142,6 +144,8 @@ val Mood.label: String
         Mood.ANGRY -> "Angry"
         Mood.TIRED -> "Tired"
         Mood.BUSY -> "Busy"
+        Mood.SICK -> "Sick"
+        Mood.EXCITED -> "Excited"
     }
 
 val Mood.color: Color
@@ -152,4 +156,6 @@ val Mood.color: Color
         Mood.ANGRY -> Color(0xFFD84315)
         Mood.TIRED -> Color(0xFF78909C)
         Mood.BUSY -> Color(0xFF1E88E5)
+        Mood.SICK -> Color(0xFF7CB342)
+        Mood.EXCITED -> Color(0xFFD81B60)
     }

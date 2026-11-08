@@ -222,18 +222,18 @@ fun DateField(label: String, date: LocalDate?, onChange: (LocalDate?) -> Unit, c
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TimeField(label: String, time: LocalTime?, onChange: (LocalTime?) -> Unit, clearable: Boolean = false) {
+fun TimeField(label: String, time: LocalTime?, onChange: (LocalTime?) -> Unit, clearable: Boolean = false, prefix: String = "", suggested: LocalTime? = null) {
     var open by remember { mutableStateOf(false) }
     Row(verticalAlignment = Alignment.CenterVertically) {
         OutlinedButton(onClick = { open = true }, modifier = Modifier.weight(1f)) {
             Icon(Icons.Outlined.Schedule, null, Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
-            Text(time?.format(timeFormat) ?: label)
+            Text(time?.format(timeFormat)?.let { prefix + it } ?: label)
         }
         if (clearable && time != null) TextButton(onClick = { onChange(null) }) { Text("Clear") }
     }
     if (open) {
-        val initial = time ?: LocalTime.now()
+        val initial = time ?: suggested ?: LocalTime.now()
         val state = rememberTimePickerState(initial.hour, initial.minute, is24Hour = false)
         AlertDialog(
             onDismissRequest = { open = false },
@@ -314,7 +314,7 @@ fun EmptyState(icon: ImageVector, text: String) {
 @Composable
 fun MoodPicker(selected: Mood?, onSelect: (Mood?) -> Unit) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Mood.entries.chunked(3).forEach { row ->
+        Mood.entries.chunked(4).forEach { row ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 row.forEach { mood -> MoodButton(mood, mood == selected, Modifier.weight(1f)) { onSelect(it) } }
             }

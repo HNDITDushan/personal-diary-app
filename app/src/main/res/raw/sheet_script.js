@@ -158,6 +158,8 @@ const MOOD_STYLE = {
   Angry: { emoji: '😠', color: '#ffccbc', points: 0 },
   Tired: { emoji: '😴', color: '#cfd8dc', points: 30 },
   Busy: { emoji: '🤯', color: '#bbdefb', points: 60 },
+  Sick: { emoji: '🤒', color: '#dcedc8', points: 10 },
+  Excited: { emoji: '🤩', color: '#f8bbd0', points: 100 },
 };
 const MOODS = Object.keys(MOOD_STYLE);
 
@@ -255,6 +257,8 @@ function moodName(v) {
   if (s.indexOf('angr') === 0 || s === '😠' || s === '😡' || s === 'mad') return 'Angry';
   if (s.indexOf('tired') === 0 || s === '😴' || s === 'sleepy') return 'Tired';
   if (s.indexOf('busy') === 0 || s === '🤯' || s === 'hectic') return 'Busy';
+  if (s.indexOf('sick') === 0 || s === '🤒' || s === 'ill' || s === 'unwell') return 'Sick';
+  if (s.indexOf('excit') === 0 || s === '🤩' || s === 'thrilled') return 'Excited';
   return '';
 }
 
@@ -271,7 +275,8 @@ function timelineItems(data, tz) {
     if (day && String(title).trim() !== '') items.push({ day: day, time: time, kind: kind, title: String(title), details: details });
   };
   data.activities.forEach(function (r) {
-    add('activity', dayKey(r['Date'], tz), timeKey(r['Time'], tz), r['Title'],
+    const from = timeKey(r['Time'], tz), to = timeKey(r['To time'], tz);
+    add('activity', dayKey(r['Date'], tz), from && to ? from + '–' + to : from, r['Title'],
       joinParts([r['Details'], r['With'] ? 'With ' + r['With'] : '']));
   });
   data.memories.forEach(function (r) {

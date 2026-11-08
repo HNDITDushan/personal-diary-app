@@ -45,6 +45,7 @@ import com.personal.mydiary.data.TaskItem
 import com.personal.mydiary.diaryApp
 import com.personal.mydiary.util.LocationHelper
 import com.personal.mydiary.util.epochDayToDate
+import com.personal.mydiary.util.durationLabel
 import com.personal.mydiary.util.millisToDateTime
 import com.personal.mydiary.util.storedToTime
 import com.personal.mydiary.util.toMillis
@@ -122,6 +123,7 @@ fun EntryEditor(type: EntryType, initial: DiaryEntry?, onDismiss: () -> Unit, de
     val app = diaryApp()
     var date by remember { mutableStateOf(initial?.date?.epochDayToDate() ?: defaultDate) }
     var time by remember { mutableStateOf(initial?.time?.storedToTime() ?: if (initial == null) LocalTime.now().withSecond(0).withNano(0) else null) }
+    var endTime by remember { mutableStateOf(initial?.endTime?.storedToTime()) }
     var title by rememberSaveable { mutableStateOf(initial?.title.orEmpty()) }
     var details by rememberSaveable { mutableStateOf(initial?.details.orEmpty()) }
     var people by rememberSaveable { mutableStateOf(initial?.people.orEmpty()) }
@@ -139,6 +141,7 @@ fun EntryEditor(type: EntryType, initial: DiaryEntry?, onDismiss: () -> Unit, de
         onSave = {
             val item = (initial ?: DiaryEntry(type = type, date = 0, title = "")).copy(
                 date = date.toEpochDay(), time = time?.toStored().orEmpty(),
+                endTime = time?.let { endTime?.toStored() }.orEmpty(),
                 title = title.trim(), details = details.trim(), people = people.trim(),
             )
             app.launch { entries().save(item) }
@@ -154,7 +157,19 @@ fun EntryEditor(type: EntryType, initial: DiaryEntry?, onDismiss: () -> Unit, de
         val earlierPeople by remember { app.db.entries().observePeople() }.collectAsState(initial = emptyList())
         SuggestionRow(people, earlierPeople) { people = it }
         DateField("Date", date, { if (it != null) date = it })
-        TimeField("No time", time, { time = it }, clearable = true)
+        if (type == EntryType.ACTIVITY) {
+            TimeField("From: no time", time, { time = it }, clearable = true, prefix = "From ")
+            // Only some activities have a span, so the end time stays optional.
+            if (time != null) {
+                TimeField("Add end time (optional)", endTime, { endTime = it }, clearable = true, prefix = "To ", suggested = time?.plusHours(1))
+                val span = endTime?.let { durationLabel(time!!.toStored(), it.toStored()) }.orEmpty()
+                if (span.isNotEmpty()) {
+                    Text("Duration: $span", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        } else {
+            TimeField("No time", time, { time = it }, clearable = true)
+        }
     }
 }
 

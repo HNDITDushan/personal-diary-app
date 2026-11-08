@@ -140,7 +140,7 @@ fun ReportScreen(onBack: () -> Unit) {
                                 modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
                             )
                             Spacer(Modifier.height(12.dp))
-                            Mood.entries.chunked(3).forEach { row ->
+                            Mood.entries.chunked(4).forEach { row ->
                                 Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                                     row.forEach { m ->
                                         Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
