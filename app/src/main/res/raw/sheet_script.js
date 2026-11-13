@@ -226,6 +226,7 @@ function loadData(ss, tz) {
     money: read('Money'),
     accounts: read('Accounts'),
     loans: read('Loans'),
+    water: read('Water'),
     moods: moods,
   };
 }
@@ -445,7 +446,7 @@ function buildDashboard(ss, data, tz) {
   const today = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
   const thisMonth = today.slice(0, 7);
   const items = timelineItems(data, tz);
-  for (let c = 1; c <= 15; c++) sheet.setColumnWidth(c, 96);
+  for (let c = 1; c <= 17; c++) sheet.setColumnWidth(c, 96);
 
   // Per-month statistics for the last 12 months.
   const months = [];
@@ -471,6 +472,16 @@ function buildDashboard(ss, data, tz) {
   const cur = stats[thisMonth];
   const score = happiness(cur.points, cur.rated);
 
+  // Water: today's total and the average over days logged this month.
+  const waterByDay = {};
+  (data.water || []).forEach(function (r) {
+    const day = dayKey(r['Date'], tz);
+    const ml = Number(String(r['Amount (ml)']).replace(/[^0-9.]/g, ''));
+    if (day && ml > 0) waterByDay[day] = (waterByDay[day] || 0) + ml;
+  });
+  const waterMonth = Object.keys(waterByDay).filter(function (d) { return d.slice(0, 7) === thisMonth; });
+  const waterAvg = waterMonth.length ? Math.round(waterMonth.reduce(function (t, d) { return t + waterByDay[d]; }, 0) / waterMonth.length) : 0;
+
   // Title and headline numbers.
   sheet.getRange(1, 1).setValue('📔 My Diary — Dashboard').setFontSize(20).setFontWeight('bold').setFontColor('#7b4fa0');
   sheet.getRange(2, 1).setValue('Updated ' + Utilities.formatDate(new Date(), tz, 'EEE d MMM yyyy, h:mm a') +
@@ -482,6 +493,7 @@ function buildDashboard(ss, data, tz) {
     ['Days rated', cur.rated + ' / ' + new Date(Date.UTC(y0, m0, 0)).getUTCDate()],
   ].concat(MOODS.map(function (m) { return [MOOD_STYLE[m].emoji + ' ' + m, cur[m]]; })).concat([
     ['💛 Good deeds', cur.deed], ['📝 Activities', cur.activity], ['📍 Places', cur.place], ['✅ Tasks done', cur.task],
+    ['💧 Water today', (waterByDay[today] || 0) + ' ml'], ['💧 Avg a day', waterAvg ? waterAvg + ' ml' : '–'],
   ]);
   cards.forEach(function (card, i) {
     const col = i + 1;

@@ -165,6 +165,8 @@ fun TodayScreen(onOpen: (String) -> Unit) {
             }
         }
 
+        item { WaterTodayCard(onOpen = { onOpen(Routes.WATER) }) }
+
         item {
             SectionTitle("Add something")
             val actions = listOf(

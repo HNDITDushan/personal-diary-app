@@ -47,7 +47,7 @@ object Notifications {
         context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
-    fun show(context: Context, id: Int, title: String, text: String) {
+    fun show(context: Context, id: Int, title: String, text: String, actions: List<NotificationCompat.Action> = emptyList()) {
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) return
@@ -63,6 +63,7 @@ object Notifications {
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setContentIntent(open)
             .setAutoCancel(true)
+            .apply { actions.forEach { addAction(it) } }
             .build()
         NotificationManagerCompat.from(context).notify(id, notification)
     }

@@ -45,6 +45,7 @@ fun MoreScreen(onOpen: (String) -> Unit) {
             Modifier.padding(padding).padding(horizontal = 16.dp, vertical = 8.dp).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            MoreItem("💧", "Water", "Track how much you drink, with reminders") { onOpen(Routes.WATER) }
             MoreItem("🎂", "Events", "Appointments, birthdays and special days") { onOpen(Routes.EVENTS) }
             MoreItem("🧮", "Loan calculator", "Work out installments, interest and months") { onOpen(Routes.LOAN_CALCULATOR) }
             MoreItem("📊", "Monthly report", "Were you happy? Good deeds and stats") { onOpen(Routes.REPORT) }

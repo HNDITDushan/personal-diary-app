@@ -25,9 +25,11 @@ data class BackupData(
     val moneyTxns: List<MoneyTxn> = emptyList(),
     val statements: List<CardStatement> = emptyList(),
     val loans: List<Loan> = emptyList(),
+    /** Null in backups made before water tracking, so restoring one keeps today's water log. */
+    val water: List<WaterLog>? = null,
 ) {
     val itemCount get() = tasks.size + appointments.size + entries.size + occasions.size + places.size + moods.size +
-        accounts.size + moneyTxns.size + statements.size + loans.size
+        accounts.size + moneyTxns.size + statements.size + loans.size + (water?.size ?: 0)
 }
 
 /**
@@ -55,6 +57,7 @@ object Backup {
             moneyTxns = db.moneyTxns().getAll(),
             statements = db.statements().getAll(),
             loans = db.loans().getAll(),
+            water = db.water().getAll(),
         )
         val out = context.contentResolver.openOutputStream(uri, "wt") ?: error("Could not open the file")
         out.use { it.write(json.encodeToString(BackupData.serializer(), data).toByteArray()) }
@@ -80,6 +83,7 @@ object Backup {
             db.moneyTxns().clear(); db.moneyTxns().insertAll(data.moneyTxns)
             db.statements().clear(); db.statements().insertAll(data.statements)
             db.loans().clear(); db.loans().insertAll(data.loans)
+            data.water?.let { db.water().clear(); db.water().insertAll(it) }
         }
         db.appointments().upcoming(System.currentTimeMillis()).forEach { AppointmentReminders.schedule(context, it) }
         ensureCashAccount(db)

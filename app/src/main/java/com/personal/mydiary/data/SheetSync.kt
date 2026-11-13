@@ -535,13 +535,34 @@ object SheetSync {
         override suspend fun remove(context: Context, db: AppDatabase, item: MoneyTxn) = db.moneyTxns().delete(item)
     }
 
+    private object Water : Table<WaterLog>("Water", listOf(Column("Date"), Column("Time"), Column("Amount (ml)"))) {
+        override suspend fun all(db: AppDatabase) = db.water().getAll()
+        override fun key(item: WaterLog) = item.uid
+        override fun updatedAt(item: WaterLog) = item.updatedAt
+        override fun toRow(item: WaterLog) = mapOf(
+            "Date" to LocalDate.ofEpochDay(item.date).toString(), "Time" to item.time,
+            "Amount (ml)" to item.amountMl.toString(), "uid" to item.uid,
+        )
+        override fun fromRow(row: Map<String, String>, existing: WaterLog?, key: String, now: Long): WaterLog? {
+            val amount = row.text("Amount (ml)").filter { it.isDigit() || it == '.' }.toDoubleOrNull()?.toInt()
+                ?.takeIf { it in 1..5000 } ?: return null
+            val dateText = row.text("Date")
+            val date = if (dateText.isEmpty()) LocalDate.now() else parseDate(dateText) ?: return null
+            return (existing ?: WaterLog(date = 0, amountMl = amount, uid = key)).copy(
+                date = date.toEpochDay(), time = parseTime(row.text("Time"))?.format(hm).orEmpty(), amountMl = amount, updatedAt = now,
+            )
+        }
+        override suspend fun store(db: AppDatabase, item: WaterLog) = db.water().upsert(item)
+        override suspend fun remove(context: Context, db: AppDatabase, item: WaterLog) = db.water().delete(item)
+    }
+
     private val tables: List<Table<*>> = listOf(
         Tasks, Appointments,
         Entries("Activities", EntryType.ACTIVITY, "With"),
         Entries("Memories", EntryType.MEMORY, "People"),
         Entries("Good deeds", EntryType.GOOD_DEED, "Who I helped"),
         SpecialDays, Places, Moods,
-        Accounts, Loans, MoneyEntries,
+        Accounts, Loans, MoneyEntries, Water,
     )
 
     // ---- Parsing what people type into the sheet ----

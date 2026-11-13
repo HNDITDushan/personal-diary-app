@@ -33,6 +33,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -40,6 +41,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.personal.mydiary.data.DayMood
 import com.personal.mydiary.data.EntryType
+import com.personal.mydiary.data.Hydration
+import com.personal.mydiary.data.WaterSettings
+import com.personal.mydiary.data.formatMl
 import com.personal.mydiary.data.Mood
 import com.personal.mydiary.diaryApp
 import com.personal.mydiary.ui.DiaryScaffold
@@ -91,6 +95,9 @@ fun ReportScreen(onBack: () -> Unit) {
     val tasksDone by remember(month) {
         db.tasks().observeCompletedBetween(month.atDay(1).startMillis(), month.atEndOfMonth().endMillis())
     }.collectAsState(initial = 0)
+    val water by remember(month) { db.water().observeBetween(from, to) }.collectAsState(initial = emptyList())
+    val waterDays = remember(water) { Hydration.dailyTotals(water) }
+    val waterGoal = WaterSettings(LocalContext.current).goalMl
 
     var rateDay by remember { mutableStateOf<java.time.LocalDate?>(null) }
     val score = happinessScore(moods)
@@ -179,6 +186,10 @@ fun ReportScreen(onBack: () -> Unit) {
                     StatLine("📝", "Activities recorded", activities.size)
                     StatLine("✨", "Memories saved", memories.size)
                     StatLine("📍", "Places visited", places.size)
+                    if (waterDays.isNotEmpty()) {
+                        StatLine("💧", "Water goal reached", "${waterDays.values.count { it >= waterGoal }} days")
+                        StatLine("🥛", "Average water a day", formatMl(waterDays.values.sum() / waterDays.size))
+                    }
                 }
             }
 
@@ -203,7 +214,10 @@ fun ReportScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun StatLine(emoji: String, label: String, value: Int) {
+private fun StatLine(emoji: String, label: String, value: Int) = StatLine(emoji, label, "$value")
+
+@Composable
+private fun StatLine(emoji: String, label: String, value: String) {
     Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Text("$emoji  $label", Modifier.weight(1f))
         Text("$value", fontWeight = FontWeight.Bold)

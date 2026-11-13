@@ -44,6 +44,7 @@ import com.personal.mydiary.ui.screens.ReportScreen
 import com.personal.mydiary.ui.screens.SheetScreen
 import com.personal.mydiary.ui.screens.TasksScreen
 import com.personal.mydiary.ui.screens.TodayScreen
+import com.personal.mydiary.ui.screens.WaterScreen
 import com.personal.mydiary.ui.theme.MyDiaryTheme
 
 class MainActivity : ComponentActivity() {
@@ -71,6 +72,7 @@ object Routes {
     const val BACKUP = "backup"
     const val SHEET = "sheet"
     const val LOAN_CALCULATOR = "loan_calculator"
+    const val WATER = "water"
 }
 
 private data class Tab(val route: String, val label: String, val icon: ImageVector, val selectedIcon: ImageVector)
@@ -84,7 +86,7 @@ private val tabs = listOf(
 )
 
 /** Sub-screens reached from "More" keep that tab highlighted. */
-private val moreChildren = setOf(Routes.EVENTS, Routes.PLACES, Routes.REPORT, Routes.BACKUP, Routes.SHEET, Routes.LOAN_CALCULATOR)
+private val moreChildren = setOf(Routes.EVENTS, Routes.PLACES, Routes.REPORT, Routes.BACKUP, Routes.SHEET, Routes.LOAN_CALCULATOR, Routes.WATER)
 
 @Composable
 fun AppRoot() {
@@ -124,6 +126,7 @@ fun AppRoot() {
             composable(Routes.REPORT) { ReportScreen(onBack = nav::popBackStack) }
             composable(Routes.BACKUP) { BackupScreen(onBack = nav::popBackStack) }
             composable(Routes.SHEET) { SheetScreen(onBack = nav::popBackStack) }
+            composable(Routes.WATER) { WaterScreen(onBack = nav::popBackStack) }
             composable(Routes.LOAN_CALCULATOR) { LoanCalculatorScreen(onBack = nav::popBackStack, onLinkSheet = { nav.navigate(Routes.SHEET) }) }
         }
     }
