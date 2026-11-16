@@ -26,6 +26,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
@@ -33,11 +34,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -189,6 +192,7 @@ private fun DashboardTab(month: YearMonth, onMonth: (YearMonth) -> Unit, account
     val totals = remember(monthTxns) { Totals(monthTxns) }
     val cashAndBank = accounts.filter { it.countsInCashTotal }.sumOf { it.balance(txns) }
     val debts = remember(accounts, loans, txns) { DebtSummary(accounts, loans, txns) }
+    var openCategory by remember(month) { mutableStateOf<CategoryRow?>(null) }
 
     LazyColumn(
         Modifier.fillMaxSize(),
@@ -225,7 +229,7 @@ private fun DashboardTab(month: YearMonth, onMonth: (YearMonth) -> Unit, account
         }
         item {
             SectionTitle("Where the money went")
-            CategoryBars(monthTxns)
+            CategoryBars(monthTxns) { openCategory = it }
         }
         item {
             SectionTitle("Credit cards this month")
@@ -245,6 +249,7 @@ private fun DashboardTab(month: YearMonth, onMonth: (YearMonth) -> Unit, account
             }
         }
     }
+    openCategory?.let { CategorySheet(it, month, accounts, txns) { openCategory = null } }
 }
 
 /** Everything still owed, card by card and loan by loan. */
@@ -386,38 +391,131 @@ private fun TrendBar(fraction: Float, color: Color) {
     }
 }
 
-/** One colour: the bar length shows size, and the category sits in text beside it. */
+/** The bar rows fold a long tail of categories into one row; [categories] says which ones a row stands for. */
+private class CategoryRow(val name: String, val amount: Long, val categories: Set<String>)
+
+private fun MoneyTxn.categoryName() = category.ifBlank { "Uncategorised" }
+
+/** One colour: the bar length shows size, and the category sits in text beside it. Tap a row for its entries. */
 @Composable
-private fun CategoryBars(monthTxns: List<MoneyTxn>) {
+private fun CategoryBars(monthTxns: List<MoneyTxn>, onOpen: (CategoryRow) -> Unit) {
     val spending = monthTxns.filter { it.kind == TxnKind.EXPENSE }
-        .groupBy { it.category.ifBlank { "Uncategorised" } }
-        .mapValues { (_, list) -> list.sumOf { it.amount } }
-        .toList().sortedByDescending { it.second }
+        .groupBy { it.categoryName() }
+        .map { (name, list) -> CategoryRow(name, list.sumOf { it.amount }, setOf(name)) }
+        .sortedByDescending { it.amount }
     // Long tails fold into one row so the chart stays readable.
-    val shown = if (spending.size > 8) spending.take(7) + ("Everything else" to spending.drop(7).sumOf { it.second }) else spending
-    val top = shown.maxOfOrNull { it.second }?.coerceAtLeast(1) ?: 1
-    val total = shown.sumOf { it.second }.coerceAtLeast(1)
+    val shown = if (spending.size > 8) {
+        val rest = spending.drop(7)
+        spending.take(7) + CategoryRow("Everything else", rest.sumOf { it.amount }, rest.flatMap { it.categories }.toSet())
+    } else spending
+    val top = shown.maxOfOrNull { it.amount }?.coerceAtLeast(1) ?: 1
+    val total = shown.sumOf { it.amount }.coerceAtLeast(1)
     val bar = spendingColor()
 
     InfoCard {
         if (shown.isEmpty()) {
             Text("No expenses this month.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        shown.forEach { (name, amount) ->
-            Row(Modifier.fillMaxWidth().padding(top = 8.dp)) {
-                Text(name, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    "${formatMoney(amount)} · ${(amount * 100 / total)}%",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
-            Box(
-                Modifier.padding(top = 4.dp).fillMaxWidth(amount.toFloat() / top).height(8.dp)
-                    .clip(RoundedCornerShape(4.dp)).background(bar),
+        } else {
+            Text(
+                "Tap a category to see what you spent on.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        shown.forEach { row ->
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { onOpen(row) }.padding(vertical = 6.dp),
+            ) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(row.name, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        "${formatMoney(row.amount)} · ${(row.amount * 100 / total)}%",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Icon(
+                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = "See ${row.name} entries",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+                Box(
+                    Modifier.padding(top = 4.dp, end = 20.dp).fillMaxWidth(row.amount.toFloat() / top).height(8.dp)
+                        .clip(RoundedCornerShape(4.dp)).background(bar),
+                )
+            }
+        }
     }
+}
+
+/** A month's expenses in one category row: the total, how it compares with last month, and every entry. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CategorySheet(row: CategoryRow, month: YearMonth, accounts: List<Account>, txns: List<MoneyTxn>, onDismiss: () -> Unit) {
+    var editing by remember { mutableStateOf<MoneyTxn?>(null) }
+    fun inRow(t: MoneyTxn) = t.kind == TxnKind.EXPENSE && t.categoryName() in row.categories
+    val entries = remember(txns, row, month) {
+        txns.filter { inRow(it) && it.month() == month }.sortedWith(compareByDescending<MoneyTxn> { it.date }.thenByDescending { it.time })
+    }
+    val lastMonth = remember(txns, row, month) { txns.filter { inRow(it) && it.month() == month.minusMonths(1) }.sumOf { it.amount } }
+    val total = entries.sumOf { it.amount }
+    val names = accounts.associate { it.id to it.name }
+    val mixed = row.categories.size > 1
+
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        LazyColumn(
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            item {
+                Text(row.name, style = MaterialTheme.typography.headlineSmall)
+                Text(month.format(monthFormat), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (mixed) {
+                    Text(
+                        row.categories.sorted().joinToString(", "),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    StatTile("Spent", formatMoney(total), Modifier.weight(1f))
+                    StatTile(if (entries.size == 1) "1 entry" else "${entries.size} entries", "Avg ${formatMoney(if (entries.isEmpty()) 0 else total / entries.size)}", Modifier.weight(1f))
+                }
+            }
+            item {
+                val diff = total - lastMonth
+                Text(
+                    when {
+                        lastMonth == 0L -> "Nothing spent on this last month."
+                        diff > 0 -> "${formatMoney(diff)} more than last month (${formatMoney(lastMonth)})."
+                        diff < 0 -> "${formatMoney(-diff)} less than last month (${formatMoney(lastMonth)})."
+                        else -> "The same as last month."
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            item { SectionTitle("Entries") }
+            items(entries, key = { it.id }) { t ->
+                CompactRow(
+                    emoji = if (t.goodDeedUid != null) "💛" else t.kind.emoji,
+                    headline = t.description.ifBlank { t.categoryName() },
+                    supporting = listOfNotNull(
+                        t.date.epochDayToDate().format(dayFormat),
+                        t.time.storedToTime()?.format(timeFormat),
+                        names[t.accountId],
+                        t.categoryName().takeIf { mixed },
+                    ).joinToString(" · "),
+                    trailing = formatMoney(t.amount),
+                    onClick = { editing = t },
+                )
+            }
+        }
+    }
+    editing?.let { TxnEditor(it, it.kind) { editing = null } }
 }
 
 @Composable
