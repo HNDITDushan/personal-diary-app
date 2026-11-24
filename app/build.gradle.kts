@@ -15,6 +15,8 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
+        // Your phone and the test emulator are both 64-bit ARM; leaving out other chips keeps the bill reader's model small.
+        ndk { abiFilters += "arm64-v8a" }
     }
 
     buildTypes {
@@ -54,6 +56,9 @@ dependencies {
     implementation("com.google.android.gms:play-services-location:21.3.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
+    // Reads text from bill photos on the phone itself. The model is inside the app, so it works offline straight away;
+    // photos are never uploaded.
+    implementation("com.google.mlkit:text-recognition:16.0.1")
 
     testImplementation("junit:junit:4.13.2")
 }

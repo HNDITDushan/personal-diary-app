@@ -9,8 +9,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [TaskItem::class, Appointment::class, DiaryEntry::class, Occasion::class, Place::class, DayMood::class,
-        Account::class, MoneyTxn::class, CardStatement::class, Loan::class, WaterLog::class],
-    version = 10,
+        Account::class, MoneyTxn::class, CardStatement::class, Loan::class, WaterLog::class,
+        ShoppingBill::class, ShoppingItem::class],
+    version = 11,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -25,6 +26,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun statements(): StatementDao
     abstract fun loans(): LoanDao
     abstract fun water(): WaterDao
+    abstract fun shopping(): ShoppingDao
 
     companion object {
         const val NAME = "diary.db"
@@ -114,11 +116,22 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** Adds shopping bills and their items, for price tracking. */
+        private val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS `shopping_bills` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `date` INTEGER NOT NULL, `time` TEXT NOT NULL, `store` TEXT NOT NULL, `branch` TEXT NOT NULL, `gross` INTEGER NOT NULL, `discount` INTEGER NOT NULL, `net` INTEGER NOT NULL, `payment` TEXT NOT NULL, `source` TEXT NOT NULL, `url` TEXT NOT NULL, `dedupeKey` TEXT, `moneyTxnUid` TEXT, `uid` TEXT NOT NULL, `updatedAt` INTEGER NOT NULL)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_shopping_bills_date` ON `shopping_bills` (`date`)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS `shopping_items` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `billUid` TEXT NOT NULL, `code` TEXT NOT NULL, `name` TEXT NOT NULL, `itemKey` TEXT NOT NULL, `unitPrice` INTEGER NOT NULL, `qty` REAL NOT NULL, `amount` INTEGER NOT NULL, `weighed` INTEGER NOT NULL, `uid` TEXT NOT NULL, `updatedAt` INTEGER NOT NULL)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_shopping_items_billUid` ON `shopping_items` (`billUid`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_shopping_items_itemKey` ON `shopping_items` (`itemKey`)")
+            }
+        }
+
         @Volatile private var instance: AppDatabase? = null
 
         fun get(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, NAME)
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
                 .build()
                 .also { instance = it }
         }

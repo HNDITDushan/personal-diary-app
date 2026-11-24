@@ -27,9 +27,13 @@ data class BackupData(
     val loans: List<Loan> = emptyList(),
     /** Null in backups made before water tracking, so restoring one keeps today's water log. */
     val water: List<WaterLog>? = null,
+    /** Null in backups made before shopping tracking, so restoring one keeps today's bills. */
+    val shoppingBills: List<ShoppingBill>? = null,
+    val shoppingItems: List<ShoppingItem>? = null,
 ) {
     val itemCount get() = tasks.size + appointments.size + entries.size + occasions.size + places.size + moods.size +
-        accounts.size + moneyTxns.size + statements.size + loans.size + (water?.size ?: 0)
+        accounts.size + moneyTxns.size + statements.size + loans.size + (water?.size ?: 0) +
+        (shoppingBills?.size ?: 0) + (shoppingItems?.size ?: 0)
 }
 
 /**
@@ -58,6 +62,8 @@ object Backup {
             statements = db.statements().getAll(),
             loans = db.loans().getAll(),
             water = db.water().getAll(),
+            shoppingBills = db.shopping().getAllBills(),
+            shoppingItems = db.shopping().getAllItems(),
         )
         val out = context.contentResolver.openOutputStream(uri, "wt") ?: error("Could not open the file")
         out.use { it.write(json.encodeToString(BackupData.serializer(), data).toByteArray()) }
@@ -84,6 +90,11 @@ object Backup {
             db.statements().clear(); db.statements().insertAll(data.statements)
             db.loans().clear(); db.loans().insertAll(data.loans)
             data.water?.let { db.water().clear(); db.water().insertAll(it) }
+            if (data.shoppingBills != null) {
+                db.shopping().clearItems(); db.shopping().clearBills()
+                db.shopping().insertBills(data.shoppingBills)
+                db.shopping().insertItems(data.shoppingItems.orEmpty())
+            }
         }
         db.appointments().upcoming(System.currentTimeMillis()).forEach { AppointmentReminders.schedule(context, it) }
         ensureCashAccount(db)

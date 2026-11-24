@@ -1,6 +1,8 @@
 package com.personal.mydiary
 
 import android.Manifest
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -25,7 +27,10 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -42,6 +47,7 @@ import com.personal.mydiary.ui.screens.MoreScreen
 import com.personal.mydiary.ui.screens.PlacesScreen
 import com.personal.mydiary.ui.screens.ReportScreen
 import com.personal.mydiary.ui.screens.SheetScreen
+import com.personal.mydiary.ui.screens.ShoppingScreen
 import com.personal.mydiary.ui.screens.TasksScreen
 import com.personal.mydiary.ui.screens.TodayScreen
 import com.personal.mydiary.ui.screens.WaterScreen
@@ -56,8 +62,37 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= 33 && savedInstanceState == null) {
             askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
+        if (savedInstanceState == null) ShareInbox.receive(intent)
         setContent { MyDiaryTheme { AppRoot() } }
     }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        ShareInbox.receive(intent)
+    }
+}
+
+/** An e-bill message or bill photo shared to the app, waiting for the Shopping screen to pick it up. */
+object ShareInbox {
+    sealed interface Shared {
+        data class Text(val text: String) : Shared
+        data class Image(val uri: Uri) : Shared
+    }
+
+    var pending by mutableStateOf<Shared?>(null)
+        private set
+
+    fun receive(intent: Intent?) {
+        if (intent?.action != Intent.ACTION_SEND) return
+        val type = intent.type.orEmpty()
+        pending = when {
+            type.startsWith("image/") -> (if (Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                else @Suppress("DEPRECATION") intent.getParcelableExtra(Intent.EXTRA_STREAM))?.let { Shared.Image(it) }
+            else -> intent.getStringExtra(Intent.EXTRA_TEXT)?.let { Shared.Text(it) }
+        } ?: pending
+    }
+
+    fun take(): Shared? = pending.also { pending = null }
 }
 
 object Routes {
@@ -73,6 +108,7 @@ object Routes {
     const val SHEET = "sheet"
     const val LOAN_CALCULATOR = "loan_calculator"
     const val WATER = "water"
+    const val SHOPPING = "shopping"
 }
 
 private data class Tab(val route: String, val label: String, val icon: ImageVector, val selectedIcon: ImageVector)
@@ -86,7 +122,7 @@ private val tabs = listOf(
 )
 
 /** Sub-screens reached from "More" keep that tab highlighted. */
-private val moreChildren = setOf(Routes.EVENTS, Routes.PLACES, Routes.REPORT, Routes.BACKUP, Routes.SHEET, Routes.LOAN_CALCULATOR, Routes.WATER)
+private val moreChildren = setOf(Routes.EVENTS, Routes.PLACES, Routes.REPORT, Routes.BACKUP, Routes.SHEET, Routes.LOAN_CALCULATOR, Routes.WATER, Routes.SHOPPING)
 
 @Composable
 fun AppRoot() {
@@ -94,6 +130,12 @@ fun AppRoot() {
     val backStack by nav.currentBackStackEntryAsState()
     val current = backStack?.destination?.route.let { if (it in moreChildren) Routes.MORE else it }
     val go: (String) -> Unit = { nav.navigate(it) }
+
+    // Something shared to the app opens Shopping, which reads it.
+    val shared = ShareInbox.pending
+    LaunchedEffect(shared) {
+        if (shared != null && backStack?.destination?.route != Routes.SHOPPING) nav.navigate(Routes.SHOPPING) { launchSingleTop = true }
+    }
 
     Scaffold(
         bottomBar = {
@@ -127,6 +169,7 @@ fun AppRoot() {
             composable(Routes.BACKUP) { BackupScreen(onBack = nav::popBackStack) }
             composable(Routes.SHEET) { SheetScreen(onBack = nav::popBackStack) }
             composable(Routes.WATER) { WaterScreen(onBack = nav::popBackStack) }
+            composable(Routes.SHOPPING) { ShoppingScreen(onBack = nav::popBackStack) }
             composable(Routes.LOAN_CALCULATOR) { LoanCalculatorScreen(onBack = nav::popBackStack, onLinkSheet = { nav.navigate(Routes.SHEET) }) }
         }
     }
