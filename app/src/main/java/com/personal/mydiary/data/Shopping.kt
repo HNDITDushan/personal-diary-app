@@ -141,9 +141,35 @@ data class PriceChange(val previous: Purchase, val current: Purchase) {
 }
 
 object ShoppingPrices {
-    /** Upper case, product code and punctuation removed, single spaces: "Carrot  (Local)" -> "CARROT LOCAL". */
+    /** Upper case, punctuation removed, single spaces: "Carrot  (Local)" -> "CARROT LOCAL". Sinhala letters and signs are kept. */
     fun normalize(name: String): String =
-        name.uppercase().replace(Regex("[^A-Z0-9%]+"), " ").trim().replace(Regex("\\s+"), " ")
+        name.uppercase().replace(Regex("[^\\p{L}\\p{M}\\p{N}%]+"), " ").trim().replace(Regex("\\s+"), " ")
+
+    /** How alike two names are, from 0 to 1, by the share of letters that match (edit distance). */
+    fun similarity(a: String, b: String): Double {
+        val x = normalize(a).replace(" ", "")
+        val y = normalize(b).replace(" ", "")
+        if (x.isEmpty() || y.isEmpty()) return 0.0
+        var prev = IntArray(y.length + 1) { it }
+        for (i in 1..x.length) {
+            val cur = IntArray(y.length + 1)
+            cur[0] = i
+            for (j in 1..y.length) {
+                cur[j] = minOf(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + if (x[i - 1] == y[j - 1]) 0 else 1)
+            }
+            prev = cur
+        }
+        return 1.0 - prev[y.length].toDouble() / maxOf(x.length, y.length)
+    }
+
+    /**
+     * The name of something bought before that a photo's reading is close to, so a name corrected once is used
+     * again: "බඛෝෞංචි" becomes "බෝංචි" after you've saved it that way. Null when nothing is close enough.
+     */
+    fun closestKnown(name: String, known: List<KnownItem>): String? {
+        if (normalize(name).length < 2) return null
+        return known.map { it.name to similarity(name, it.name) }.filter { it.second >= 0.6 }.maxByOrNull { it.second }?.first
+    }
 
     /**
      * The key that ties purchases of one product together. A shop's product code is the surest match,

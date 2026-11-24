@@ -103,4 +103,78 @@ class ShoppingTest {
         assertEquals("BREAD", ShoppingPrices.keyFor("", "  bread ", known))
         assertEquals("MILK 1L", ShoppingPrices.keyFor("", "Milk 1L", known))
     }
+
+    /** A market bill: Sinhala names on their own lines, figures below, a Sinhala total. */
+    @Test
+    fun readsSinhalaBillWithNamesAbove() {
+        val rows = listOf(
+            "Tel : 011 000 0000", "#000009", "2026.10.24", "09.10.20", "Kg/Pcs",
+            "කැරට්", "400 0.555 222.0",
+            "තක්කාලි", "800 0.270 216.0",
+            "120 2 240.0",
+            "මුළු එකතුව : 678.0",
+            "678.0",
+        )
+        val bill = ReceiptText.parse(rows)
+        assertEquals(LocalDate.of(2026, 10, 24), bill.date)
+        assertEquals("09:10", bill.time)
+        assertEquals(
+            listOf(
+                ParsedLine("", "කැරට්", 40000, 0.555, 22200, weighed = true),
+                ParsedLine("", "තක්කාලි", 80000, 0.27, 21600, weighed = true),
+                ParsedLine("", "", 12000, 2.0, 24000),
+            ),
+            bill.lines,
+        )
+    }
+
+    @Test
+    fun aLoneFigureEqualToTheItemsIsTheTotal() {
+        val bill = ReceiptText.parse(listOf("Bread", "160.00", "Milk", "100 2 200.00", "360.00", "Later", "50.00"))
+        assertEquals(listOf("Bread", "Milk"), bill.lines.map { it.name })
+    }
+
+    /** Faint print: the points are lost and some digits read as letters, as text recognition gave for a real bill. */
+    @Test
+    fun recoversFiguresWithoutDecimalPoints() {
+        val rows = listOf(
+            "Tel: 011 222 3333", "#000009", "2026 10 24", "09 10 20", "ngIPcs",
+            "400 0 555 222 0",
+            "480 0 095 456",
+            "88aux)",
+            "240 G 4G0 96 0",
+            "300 0120 36 0",
+            "640 G.085 54 4",
+            "520 02/0 140 4",
+            "340 1115 379 1",
+            "I013 406 0",
+            "400",
+            "1213 0",
+        )
+        val lines = ReceiptText.parse(rows).lines
+        assertEquals(
+            listOf(
+                Triple(40000L, 0.555, 22200L), Triple(48000L, 0.095, 4560L), Triple(24000L, 0.4, 9600L), Triple(30000L, 0.12, 3600L),
+                Triple(64000L, 0.085, 5440L), Triple(52000L, 0.27, 14040L), Triple(34000L, 1.115, 37910L),
+            ),
+            lines.map { Triple(it.unitPrice, it.qty, it.amount) },
+        )
+        assert(lines.all { it.weighed })
+    }
+
+    @Test
+    fun sinhalaNamesKeepTheirOwnKeys() {
+        assertEquals("කැරට්", ShoppingPrices.keyFor("", "කැරට්", emptyList()))
+        val known = listOf(KnownItem("කැරට්", "කැරට්", ""), KnownItem("බෝංචි", "බෝංචි", ""))
+        assertEquals("බෝංචි", ShoppingPrices.keyFor("", "බෝංචි", known))
+    }
+
+    @Test
+    fun misreadNamesMatchWhatWasBoughtBefore() {
+        val known = listOf(KnownItem("බෝංචි", "බෝංචි", ""), KnownItem("තක්කාලි", "තක්කාලි", ""), KnownItem("#1", "Carrot", "1"))
+        assertEquals("බෝංචි", ShoppingPrices.closestKnown("බඛෝෞංචි", known))
+        assertEquals("තක්කාලි", ShoppingPrices.closestKnown("තක්කලි", known))
+        assertEquals("Carrot", ShoppingPrices.closestKnown("carrots", known))
+        assertNull(ShoppingPrices.closestKnown("ගෝව මල්", known))
+    }
 }

@@ -6,6 +6,8 @@ plugins {
 }
 
 android {
+    // Tesseract's language files are opened straight from the app, which needs them stored uncompressed.
+    androidResources { noCompress += "traineddata" }
     namespace = "com.personal.mydiary"
     compileSdk = 36
 
@@ -15,7 +17,7 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
-        // Your phone and the test emulator are both 64-bit ARM; leaving out other chips keeps the bill reader's model small.
+        // Your phone and the test emulator are both 64-bit ARM; leaving out other chips keeps the bill reader small.
         ndk { abiFilters += "arm64-v8a" }
     }
 
@@ -56,9 +58,10 @@ dependencies {
     implementation("com.google.android.gms:play-services-location:21.3.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
-    // Reads text from bill photos on the phone itself. The model is inside the app, so it works offline straight away;
-    // photos are never uploaded.
+    // Bill photos are read on the phone itself; nothing is uploaded. ML Kit finds the rows and reads the figures,
+    // and Tesseract (models in assets/tessdata) reads the Sinhala item names, which ML Kit can't.
     implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation("cz.adaptech.tesseract4android:tesseract4android:4.9.0")
 
     testImplementation("junit:junit:4.13.2")
 }

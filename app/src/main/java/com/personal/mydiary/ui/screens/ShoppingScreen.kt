@@ -101,6 +101,7 @@ import com.personal.mydiary.ui.EmptyState
 import com.personal.mydiary.ui.HeroCard
 import com.personal.mydiary.ui.InfoCard
 import com.personal.mydiary.ui.SectionTitle
+import com.personal.mydiary.ui.SuggestionRow
 import com.personal.mydiary.ui.TextInput
 import com.personal.mydiary.ui.TimeField
 import com.personal.mydiary.util.dayFormat
@@ -141,8 +142,10 @@ private fun draftFrom(parsed: ParsedBill, source: BillSource, url: String = "", 
         net = parsed.net ?: parsed.lines.sumOf { it.amount }, payment = parsed.payment, source = source, url = url,
         dedupeKey = parsed.dedupeKey,
     )
-    val lines = parsed.lines.filterNot { ShoppingPrices.isNoise(it.unitPrice, it.qty) }.map {
-        ShoppingItem(billUid = bill.uid, code = it.code, name = ShoppingPrices.displayName(it.name), itemKey = "", unitPrice = it.unitPrice, qty = it.qty, amount = it.amount, weighed = it.weighed)
+    val lines = parsed.lines.filterNot { ShoppingPrices.isNoise(it.unitPrice, it.qty) }.mapIndexed { i, it ->
+        // A name that couldn't be read gets a stand-in to rename on the check screen.
+        val name = it.name.ifBlank { "Item ${i + 1}" }
+        ShoppingItem(billUid = bill.uid, code = it.code, name = ShoppingPrices.displayName(name), itemKey = "", unitPrice = it.unitPrice, qty = it.qty, amount = it.amount, weighed = it.weighed)
     }
     return Draft(bill, lines, isNew = true, note = note)
 }
@@ -195,11 +198,15 @@ fun ShoppingScreen(onBack: () -> Unit) {
         reading = "Reading the bill…"
         scope.launch {
             try {
-                val parsed = BillPhoto.read(context, uri)
+                val read = BillPhoto.read(context, uri)
+                // Names read from a photo take the spelling of anything close that was bought before.
+                val known = app.db.shopping().knownItems()
+                val parsed = read.copy(lines = read.lines.map { l -> ShoppingPrices.closestKnown(l.name, known)?.let { l.copy(name = it) } ?: l })
                 draft = draftFrom(
                     parsed, BillSource.PHOTO,
                     note = if (parsed.lines.isEmpty()) "No items could be read from the photo. Add them below, or try a sharper, straighter photo."
-                    else "Read ${parsed.lines.size} items from the photo. Check the names and prices before saving.",
+                    else "Read ${parsed.lines.size} items from the photo. Check the names and prices before saving." +
+                        (parsed.lines.count { it.name.isBlank() }.takeIf { it > 0 }?.let { if (it == 1) " 1 name couldn't be read; tap the item to name it." else " $it names couldn't be read; tap an item to name it." } ?: ""),
                 )
             } catch (e: Exception) {
                 problem = "The photo couldn't be read: ${e.message}"
@@ -833,7 +840,17 @@ private fun BillReview(draft: Draft, onDismiss: () -> Unit, onSaved: (ShoppingBi
 
 @Composable
 private fun LineEditor(initial: ShoppingItem?, onDismiss: () -> Unit, onDelete: (() -> Unit)?, onSave: (ShoppingItem) -> Unit) {
+    val app = diaryApp()
     var name by rememberSaveable { mutableStateOf(initial?.name.orEmpty()) }
+    var known by remember { mutableStateOf(emptyList<String>()) }
+    LaunchedEffect(Unit) { known = app.db.shopping().knownItems().map { it.name }.distinct() }
+    // Things bought before, most alike first, so a misread name is one tap to fix.
+    val suggestions = remember(name, known) {
+        known.filter { !it.equals(name.trim(), true) }
+            .map { it to maxOf(ShoppingPrices.similarity(name, it), if (name.isNotBlank() && it.contains(name.trim(), true)) 0.9 else 0.0) }
+            .filter { name.isBlank() || it.second >= 0.3 }
+            .sortedByDescending { it.second }.map { it.first }
+    }
     var price by rememberSaveable { mutableStateOf(initial?.unitPrice?.let(::moneyInput).orEmpty()) }
     var qty by rememberSaveable { mutableStateOf(initial?.qty?.let { if (it == it.toLong().toDouble()) it.toLong().toString() else it.toString() } ?: "1") }
     var weighed by rememberSaveable { mutableStateOf(initial?.weighed ?: false) }
@@ -859,6 +876,7 @@ private fun LineEditor(initial: ShoppingItem?, onDismiss: () -> Unit, onDelete: 
         },
     ) {
         TextInput(name, { name = it }, "Item, e.g. Carrot")
+        SuggestionRow("", suggestions, limit = 8) { name = it }
         Row(Modifier.clickable { weighed = !weighed }, verticalAlignment = Alignment.CenterVertically) {
             Text("Sold by weight (price per kg)", Modifier.weight(1f))
             Switch(checked = weighed, onCheckedChange = { weighed = it })
